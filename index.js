@@ -6,10 +6,6 @@ const state = require('./src/state');
 const { CookieJar } = require('tough-cookie');
 state.cookieJar = new CookieJar();
 
-const { joinVoiceChannel, getVoiceConnection } = require('@discordjs/voice');
-
-
-
 
 // Load constants
 const CONSTANTS = require('./src/constants');
@@ -35,6 +31,7 @@ const createMessageHandler = require('./src/managers/message');
 const huntbotState = require('./src/services/huntbotState');
 const captchaSolver = require('./src/services/captchaSolver');  // <-- UBAH INI
 const createHuntbotManager = require('./src/managers/huntbot');
+const createVoiceManager = require('./src/managers/voice');
 
 // Initialize managers dengan dependencies
 const channelManager = createChannelManager(state, configManager);
@@ -57,6 +54,7 @@ const commandSender = createCommandSender(state, channelManager, emergencyHandle
 const loopManager = createLoopManager(state, commandSender);
 const captchaHandler = createCaptchaHandler(state, configManager, loopManager, telegramService, channelManager, macrodroidService);
 const dailyResetManager = createDailyResetManager(state, telegramService);
+const voiceManager = createVoiceManager(state, configManager);
 
 // huntbot 
 const huntbotManager = createHuntbotManager(
@@ -79,7 +77,8 @@ const messageHandler = createMessageHandler(
     telegramService, 
     macrodroidService,
     huntbotManager,
-    commandSender  // <-- TAMBAHKAN INI!
+    commandSender,  // <-- TAMBAHKAN INI!
+    voiceManager
 );
 ///
 
@@ -88,8 +87,8 @@ const messageHandler = createMessageHandler(
 const createClientManager = require('./src/core/client');
 const createPollingSystem = require('./src/core/polling');
 
-const clientManager = createClientManager(state, configManager, channelManager, messageHandler, telegramService, huntbotManager);
-const pollingSystem = createPollingSystem(state, configManager, clientManager, channelManager, loopManager, telegramService);
+const clientManager = createClientManager(state, configManager, channelManager, messageHandler, telegramService, huntbotManager, voiceManager);
+const pollingSystem = createPollingSystem(state, configManager, clientManager, channelManager, loopManager, telegramService, voiceManager);
 
 // --- INITIALIZATION ---
 const initialize = () => {

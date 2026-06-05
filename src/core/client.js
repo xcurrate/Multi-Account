@@ -3,7 +3,7 @@ const log = require('../../logger');
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // TAMBAH PARAMETER huntbotManager
-module.exports = (state, configManager, channelManager, messageHandler, telegramService, huntbotManager) => ({
+module.exports = (state, configManager, channelManager, messageHandler, telegramService, huntbotManager, voiceManager) => ({
     initialize() {
         if (state.client) {
             log.warn('🔄 Merestart sesi Discord...');
@@ -24,6 +24,10 @@ module.exports = (state, configManager, channelManager, messageHandler, telegram
             state.config.botStatus.paused = true;
             state.config.botStatus.running = false;
             configManager.save();
+
+            if (voiceManager) {
+                voiceManager.joinConfigured('restart').catch(err => log.error(`❌ Auto Join VC gagal: ${err.message}`));
+            }
 
             // Di bagian setelah client ready, tambahkan:
             setTimeout(async () => {

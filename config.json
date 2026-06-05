@@ -43,7 +43,11 @@
     "custom": false,
     "text1": "",
     "text2": "",
-    "autoResume": false
+    "autoResume": false,
+    "voice": {
+      "enabled": false,
+      "channelId": ""
+    }
   },
   "delays": {
     "hunt": {
