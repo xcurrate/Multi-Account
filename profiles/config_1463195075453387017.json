@@ -1,0 +1,88 @@
+{
+  "token": "MTQ2MzE5NTA3NTQ1MzM4NzAxNw.Gr912X.wj8u8MKT63tEHYKoYjhROZI9UnJTZ3GM-sZ_Lg",
+  "port": 25629,
+  "channels": [],
+  "botStatus": {
+    "running": false,
+    "paused": true
+  },
+  "macrodroidId": "6c55fafa-76f9-474d-852e-e5e7075259c5",
+  "settings": {
+    "twoCaptchaKey": "df854fd4792de598a1bebc3f0b6a1377",
+    "hunt": false,
+    "battle": false,
+    "pray": false,
+    "custom": false,
+    "text1": "owo",
+    "text2": "wcurse 979055042193670144",
+    "autoResume": false,
+    "control": {
+      "start": "wcash",
+      "pause": "wbuy 1",
+      "allowIds": []
+    },
+    "channelRotation": {
+      "enabled": false,
+      "minMs": 180000,
+      "maxMs": 360000
+    },
+    "boss": {
+      "enabled": true,
+      "allowedGuilds": [
+        "559475774441259008"
+      ]
+    },
+    "messageFilter": {
+      "enabled": false,
+      "channelIds": [
+        "1374558000185868299"
+      ],
+      "guildIds": [],
+      "debug": false,
+      "debugOnlyOwO": false
+    },
+    "telegram": {
+      "token": "8438392707:AAEaLx7g5V9_ncgmFCVzGlFR7wwazf2HW9",
+      "chatId": ""
+    },
+    "telegramToken": "8438392707:AAEaLx7g5V9_ncgmFCVzGlFR7wwazf2HW9",
+    "telegramChatId": ""
+  },
+  "delays": {
+    "hunt": {
+      "min": 15000,
+      "max": 16500
+    },
+    "battle": {
+      "min": 15100,
+      "max": 15100
+    },
+    "pray": {
+      "min": 300000,
+      "max": 305000
+    },
+    "custom1": {
+      "min": 10300,
+      "max": 10300
+    },
+    "custom2": {
+      "min": 300000,
+      "max": 300000
+    }
+  },
+  "huntbot": {
+    "enabled": true,
+    "autoMode": true,
+    "defaultUpgrade": "duration",
+    "defaultDuration": "1D",
+    "notifyProgress": true
+  },
+  "tiketandhb": {
+    "channelId": "1378917898063446156"
+  },
+  "autosolver": false,
+  "maxLogLines": 15,
+  "safety": {
+    "cctv": false
+  }
+}
