@@ -341,12 +341,12 @@ const uiComponents = {
             .action-group { display: flex; gap: 10px; margin-bottom: 16px; }
             .divider { border-top: 1px solid var(--border); margin: 16px 0; }
             
-            .log-box { background: #0c0c10; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5; white-[...]
+            .log-box { background: #0c0c10; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5; overflow-y: auto; max-height: 200px; }
             .log-box::-webkit-scrollbar { width: 6px; }
             .log-box::-webkit-scrollbar-track { background: #0c0c10; }
             .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
             .input-hint { font-size: 11px; color: #72767d; margin-top: 4px; }
-            .telegram-badge { background: rgba(88, 101, 242, 0.1); border: 1px solid var(--accent); border-radius: 4px; padding: 4px 8px; font-size: 11px; color: var(--accent); display: inline-bl[...]
+            .telegram-badge { background: rgba(88, 101, 242, 0.1); border: 1px solid var(--accent); border-radius: 4px; padding: 4px 8px; font-size: 11px; color: var(--accent); display: inline-block; }
         </style>
         `;
     },
@@ -854,8 +854,9 @@ app.post('/save', (req, res) => {
 // --- START SERVER ---
 function start() {
     try {
-        app.listen(PORT, () => {
-            console.log(`[DASHBOARD] ✅ Running on http://localhost:${PORT}`);
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`[DASHBOARD] ✅ Running on http://0.0.0.0:${PORT}`);
+            console.log(`[DASHBOARD] 🌐 Access from external: http://PerkasaHost:${PORT}`);
         });
     } catch (error) {
         console.error('[DASHBOARD] ❌ Failed to start:', error.message);
