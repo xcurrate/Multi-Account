@@ -1,5 +1,5 @@
 {
-  "port": 25629,
+  "port": 2028,
   "botStatus": {
     "running": false,
     "paused": true
