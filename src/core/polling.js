@@ -1,7 +1,7 @@
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
 
-module.exports = (state, configManager, clientManager, channelManager, loopManager, telegramService) => ({
+module.exports = (state, configManager, clientManager, channelManager, loopManager, telegramService, voiceManager) => ({
     start() {
         setInterval(() => {
             const result = configManager.updateFromDisk();
@@ -16,6 +16,16 @@ module.exports = (state, configManager, clientManager, channelManager, loopManag
             if (result.channelsChanged) {
                 log.info('🔄 Daftar Channel berubah. Mengupdate target...');
                 channelManager.updateActive();
+            }
+
+            if (result.voiceChanged && voiceManager) {
+                log.info('🔊 Pengaturan Voice Channel berubah. Menerapkan ulang...');
+                if (state.config.settings?.voice?.enabled) {
+                    voiceManager.joinConfigured('dashboard').catch(err => log.error(`❌ Auto Join VC gagal: ${err.message}`));
+                } else {
+                    const count = voiceManager.leaveAllCachedGuilds();
+                    log.info(`🔇 Auto Join VC dinonaktifkan. Koneksi VC ditutup: ${count}`);
+                }
             }
 
             if (result.statusChanged) {

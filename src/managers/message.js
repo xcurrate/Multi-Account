@@ -1,13 +1,11 @@
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
 
-const { joinVoiceChannel, getVoiceConnection } = require('@discordjs/voice');
 
 
 
 
-
-module.exports = (state, configManager, bossManager, captchaHandler, loopManager, channelManager, telegramService, macrodroidService, huntbotManager, commandSender) => ({
+module.exports = (state, configManager, bossManager, captchaHandler, loopManager, channelManager, telegramService, macrodroidService, huntbotManager, commandSender, voiceManager) => ({
     async handle(msg) {
         if (!state.client?.isReady()) return;
 
@@ -95,26 +93,15 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
             const args = text.split(" ");
             const channelId = args[1];
 
-            if (channelId) {
+            if (channelId && voiceManager) {
                 try {
-                    // Gunakan state.client sesuai arsitektur kodemu
-                    const voiceChannel = state.client.channels.cache.get(channelId);
+                    const result = await voiceManager.join(channelId, { persist: true, source: 'command' });
 
-                    if (!voiceChannel || voiceChannel.type !== 'GUILD_VOICE') {
-                        log.error("❌ Voice Channel tidak ditemukan atau ID salah!");
+                    if (!result) {
                         msg.react("❌").catch(()=>{});
                         return;
                     }
 
-                    joinVoiceChannel({
-                        channelId: voiceChannel.id,
-                        guildId: voiceChannel.guild.id,
-                        adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-                        selfDeaf: true,
-                        selfMute: true
-                    });
-
-                    log.success(`🔊 Berhasil nongkrong di VC: ${voiceChannel.name}`);
                     msg.react("✅").catch(()=>{});
 
                 } catch (err) {
@@ -129,12 +116,9 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
         if (text === "vleave") {
             try {
                 // Pastikan bot keluar dari VC yang ada di server tempat pesan ini dikirim
-                if (!msg.guildId) return; 
+                if (!msg.guildId || !voiceManager) return; 
 
-                const connection = getVoiceConnection(msg.guildId);
-                
-                if (connection) {
-                    connection.destroy();
+                if (voiceManager.leave(msg.guildId)) {
                     log.info(`🔇 Keluar dari VC di server ${msg.guild?.name || msg.guildId}`);
                     msg.react("👋").catch(()=>{});
                 } else {

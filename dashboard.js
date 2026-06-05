@@ -148,6 +148,7 @@ const configManager = {
         config.settings.boss = config.settings.boss || { enabled: true, allowedGuilds: [] };
         config.settings.messageFilter = config.settings.messageFilter || { enabled: true, channelIds: [], guildIds: [], debug: false, debugOnlyOwO: false };
         config.settings.telegram = config.settings.telegram || { token: "", chatId: "" };
+        config.settings.voice = config.settings.voice || { enabled: false, channelId: "" };
 
         Object.keys(CONSTANTS.DEFAULT_DELAYS).forEach(key => {
             config.delays[key] = {
@@ -212,6 +213,9 @@ const configManager = {
         config.settings.messageFilter.guildIds = this.toArray(body.mfGuildIds);
         config.settings.messageFilter.debug = this.toBool(body.mfDebug);
         config.settings.messageFilter.debugOnlyOwO = this.toBool(body.mfDebugOnlyOwO);
+
+        config.settings.voice.enabled = this.toBool(body.voiceEnabled);
+        config.settings.voice.channelId = body.voiceChannelId || '';
 
         config.huntbot.enabled = this.toBool(body.hbEnabled);
         config.huntbot.autoMode = this.toBool(body.hbAutoMode);
@@ -446,6 +450,7 @@ const uiComponents = {
         const rotation = config.settings.channelRotation || {};
         const boss = config.settings.boss || {};
         const msgFilter = config.settings.messageFilter || {};
+        const voice = config.settings.voice || {};
 
         const profiles = profileManager.getSavedProfiles();
         const activeProfileId = profileManager.getUserId(config.token);
@@ -666,6 +671,18 @@ const uiComponents = {
                             <div class="divider"></div>
                             <label>Tiket & Huntbot Channel ID</label>
                             <input type="text" name="tiketandhbChannel" value="${config.tiketandhb?.channelId || ''}" placeholder="Channel ID">
+                        </div>
+
+
+                        <div class="card">
+                            <label>🔊 VOICE CHANNEL</label>
+                            <div class="toggle-row">
+                                <span>Auto Join Voice Channel</span>
+                                <input type="checkbox" name="voiceEnabled" ${voice.enabled ? 'checked' : ''}>
+                            </div>
+                            <label>Voice Channel ID</label>
+                            <input type="text" name="voiceChannelId" value="${voice.channelId || ''}" placeholder="Voice Channel ID">
+                            <div class="input-hint">Jika aktif, bot otomatis join VC ini setelah login/restart. Command vjoin juga menyimpan VC terakhir ke field ini.</div>
                         </div>
 
                         <div class="card">
