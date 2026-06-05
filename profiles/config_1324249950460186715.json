@@ -1,4 +1,6 @@
 {
+  "token": "",
+  
   "port": 25629,
   "botStatus": {
     "running": true,
