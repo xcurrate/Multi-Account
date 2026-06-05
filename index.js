@@ -11,10 +11,6 @@ const { joinVoiceChannel, getVoiceConnection } = require('@discordjs/voice');
 
 
 
-// Masukkan cookie aslimu di sini biar bot bisa bypass login!
-const myCookie = "connect.sid=s%3Alk8RYYKZ_FHPZx2ZqJ4W5Ttl4yU7N6ZV.jIXfy1YZUIPpSi036moSra3L6MJwvMjSba4lApJE%2FrM"; 
-state.cookieJar.setCookieSync(myCookie, 'https://owobot.com');
-
 // Load constants
 const CONSTANTS = require('./src/constants');
 
