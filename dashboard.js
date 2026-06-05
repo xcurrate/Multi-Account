@@ -2,7 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
-const https = require('https'); // Ditambahkan untuk request ke Discord API
+const https = require('https');
 
 // --- CONSTANTS & CONFIGURATION ---
 const CONSTANTS = {
@@ -433,6 +433,8 @@ const uiComponents = {
     },
 
     renderPage(config) {
+        console.log('[DASHBOARD] Rendering page with config:', { port: config.port, token: config.token ? '***' : 'MISSING' });
+        
         const { statusText, statusClass } = configManager.computeStatus(config);
         const channels = config.channels || [];
         const custom1 = config.delays.custom1 || CONSTANTS.DEFAULT_DELAYS.custom1;
@@ -732,9 +734,10 @@ app.use(bodyParser.urlencoded({ extended: true }));
 const initialConfig = configManager.ensureShape(configManager.get());
 const PORT = process.env.SERVER_PORT || process.env.PORT || initialConfig.port || CONSTANTS.DEFAULT_PORT;
 
+console.log(`[DASHBOARD] Initial port check: PORT=${PORT}, initialConfig.port=${initialConfig.port}`);
+
 // --- ROUTES ---
 
-// Endpoint baru untuk request ke Discord API
 app.get('/api/profile', (req, res) => {
     const config = configManager.get();
     const token = config.token;
@@ -746,7 +749,7 @@ app.get('/api/profile', (req, res) => {
         path: '/api/v9/users/@me',
         method: 'GET',
         headers: {
-            'Authorization': token, // Menggunakan token yang ada di config.json
+            'Authorization': token,
             'Content-Type': 'application/json',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
@@ -773,12 +776,15 @@ app.get('/api/profile', (req, res) => {
 });
 
 app.get('/', (req, res) => {
+    console.log('[DASHBOARD] GET / - Rendering dashboard');
     try {
         const config = configManager.ensureShape(configManager.get());
-        res.send(uiComponents.renderPage(config));
+        const html = uiComponents.renderPage(config);
+        console.log('[DASHBOARD] Dashboard HTML generated, size:', html.length, 'bytes');
+        res.send(html);
     } catch (error) {
-        console.error('Error rendering dashboard:', error);
-        res.status(500).send('Internal Server Error');
+        console.error('[DASHBOARD] Error rendering dashboard:', error);
+        res.status(500).send(`<pre>Error: ${error.message}\n${error.stack}</pre>`);
     }
 });
 
@@ -815,17 +821,11 @@ app.post('/save', (req, res) => {
                 const targetId = profileManager.getUserId(newToken);
                 const profilePath = profileManager.getProfilePath(targetId);
                 
-                // Get current config as template
                 let currentConfig = configManager.ensureShape(configManager.get());
-                
-                // Copy current config, but update with new token
                 let newConfig = JSON.parse(JSON.stringify(currentConfig));
                 newConfig.token = newToken;
                 
-                // Save as main config
                 configManager.save(newConfig);
-                
-                // Save profile
                 fileService.writeJson(profilePath, newConfig);
                 console.log(`[PROFILE] Profil baru untuk akun ${targetId} berhasil dibuat dengan pengaturan dari akun saat ini.`);
             }
@@ -854,6 +854,7 @@ app.post('/save', (req, res) => {
 // --- START SERVER ---
 function start() {
     try {
+        console.log(`[DASHBOARD] Starting server on port ${PORT} (0.0.0.0)...`);
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`[DASHBOARD] ✅ Running on http://0.0.0.0:${PORT}`);
             console.log(`[DASHBOARD] 🌐 Access from external: http://PerkasaHost:${PORT}`);
