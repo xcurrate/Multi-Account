@@ -11,6 +11,7 @@ const CONSTANTS = {
     LOG_REFRESH_INTERVAL_MS: 1000,
     REDIRECT_DELAY_SECONDS: 1,
     CONFIG_FILE: 'config.json',
+    PROFILES_META_FILE: 'profiles/meta.json',
     DEFAULT_DELAYS: {
         hunt: { min: 15000, max: 15000 },
         battle: { min: 15000, max: 15000 },
@@ -72,12 +73,48 @@ const profileManager = {
         return path.join(dir, `config_${id}.json`);
     },
 
+    getMetaPath() {
+        const dir = path.join(__dirname, 'profiles');
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+        return path.join(dir, 'meta.json');
+    },
+
     getSavedProfiles() {
         const dir = path.join(__dirname, 'profiles');
         if (!fs.existsSync(dir)) return [];
         return fs.readdirSync(dir)
             .filter(f => f.startsWith('config_') && f.endsWith('.json'))
             .map(f => f.replace('config_', '').replace('.json', ''));
+    },
+
+    saveProfileMeta(id, username, globalName, avatar) {
+        const metaPath = this.getMetaPath();
+        let meta = fileService.readJson(metaPath);
+        if (!meta.profiles) meta.profiles = {};
+        
+        meta.profiles[id] = {
+            username,
+            globalName,
+            avatar
+        };
+        
+        fileService.writeJson(metaPath, meta);
+    },
+
+    getProfileMeta(id) {
+        const metaPath = this.getMetaPath();
+        const meta = fileService.readJson(metaPath);
+        return meta.profiles && meta.profiles[id] ? meta.profiles[id] : null;
+    },
+
+    getProfileDisplayName(id) {
+        const meta = this.getProfileMeta(id);
+        if (meta && meta.globalName) {
+            return meta.globalName;
+        } else if (meta && meta.username) {
+            return `@${meta.username}`;
+        }
+        return `Akun ${id}`;
     }
 };
 
@@ -304,12 +341,12 @@ const uiComponents = {
             .action-group { display: flex; gap: 10px; margin-bottom: 16px; }
             .divider { border-top: 1px solid var(--border); margin: 16px 0; }
             
-            .log-box { background: #0c0c10; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; min-height: 140px; max-height: 140px; overflow-y: auto; color: #dcddde; scrollbar-width: thin; scrollbar-color: var(--border) #0c0c10; }
+            .log-box { background: #0c0c10; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5; white-[...]
             .log-box::-webkit-scrollbar { width: 6px; }
             .log-box::-webkit-scrollbar-track { background: #0c0c10; }
             .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
             .input-hint { font-size: 11px; color: #72767d; margin-top: 4px; }
-            .telegram-badge { background: rgba(88, 101, 242, 0.1); border: 1px solid var(--accent); border-radius: 4px; padding: 4px 8px; font-size: 11px; color: var(--accent); display: inline-block; margin-top: 8px; }
+            .telegram-badge { background: rgba(88, 101, 242, 0.1); border: 1px solid var(--accent); border-radius: 4px; padding: 4px 8px; font-size: 11px; color: var(--accent); display: inline-bl[...]
         </style>
         `;
     },
@@ -457,7 +494,7 @@ const uiComponents = {
                                     <div class="col">
                                         <select name="selectedProfile" class="input-select">
                                             <option value="">-- Pilih Profil Tersimpan --</option>
-                                            ${profiles.map(p => `<option value="${p}">${p === activeProfileId ? `✅ Akun ${p} (Aktif)` : `Akun ${p}`}</option>`).join('')}
+                                            ${profiles.map(p => `<option value="${p}">${p === activeProfileId ? `✅ ${profileManager.getProfileDisplayName(p)} (Aktif)` : profileManager.getProfileDisplayName(p)}</option>`).join('')}
                                         </select>
                                     </div>
                                     <div class="col" style="flex: 0.4;">
@@ -479,7 +516,7 @@ const uiComponents = {
                                         <button type="submit" name="action" value="newProfile" class="btn" style="background: var(--green); color: white;">➕ BUAT</button>
                                     </div>
                                 </div>
-                                <div class="input-hint">Paste token akun baru dan klik BUAT. Pengaturan otomatis dibuatkan!</div>
+                                <div class="input-hint">Paste token akun baru dan klik BUAT. Pengaturan akan disamakan dengan akun saat ini.</div>
                             </div>
                         </div>
                         <div class="card">
@@ -778,15 +815,19 @@ app.post('/save', (req, res) => {
                 const targetId = profileManager.getUserId(newToken);
                 const profilePath = profileManager.getProfilePath(targetId);
                 
-                let newConfig = fs.existsSync(profilePath) 
-                    ? fileService.readJson(profilePath) 
-                    : configManager.ensureShape({});
+                // Get current config as template
+                let currentConfig = configManager.ensureShape(configManager.get());
                 
-                newConfig.token = newToken; 
+                // Copy current config, but update with new token
+                let newConfig = JSON.parse(JSON.stringify(currentConfig));
+                newConfig.token = newToken;
                 
-                configManager.save(newConfig); 
-                fileService.writeJson(profilePath, newConfig); 
-                console.log(`[PROFILE] Profil baru untuk akun ${targetId} berhasil dibuat.`);
+                // Save as main config
+                configManager.save(newConfig);
+                
+                // Save profile
+                fileService.writeJson(profilePath, newConfig);
+                console.log(`[PROFILE] Profil baru untuk akun ${targetId} berhasil dibuat dengan pengaturan dari akun saat ini.`);
             }
             return res.send(uiComponents.getSavedResponse());
         }
