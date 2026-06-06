@@ -1,5 +1,6 @@
 // --- STATE MANAGEMENT ---
 module.exports = {
+    startedAt: Date.now(),
     client: null,
     config: {},
     activeToken: '',
@@ -15,6 +16,20 @@ module.exports = {
     hasUsedFirstLoopStartupStagger: false,
     captchaSolverAbortController: null,
     captchaSolveRunId: 0,
+    stats: {
+        commands: {
+            total: 0,
+            byType: {},
+            recent: [],
+            last: null
+        },
+        captcha: {
+            detected: 0,
+            solved: 0,
+            lastDetectedAt: null,
+            lastSolvedAt: null
+        }
+    },
     channelRotateTimer: null,
     lastChannelId: null,
     lastTicketCheck: 0,
