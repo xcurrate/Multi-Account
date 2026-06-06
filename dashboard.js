@@ -3,6 +3,7 @@ const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const state = require('./src/state');
 
 // --- CONSTANTS & CONFIGURATION ---
 const CONSTANTS = {
@@ -22,12 +23,7 @@ const CONSTANTS = {
 };
 
 // --- LOGGER INITIALIZATION ---
-let logger = null;
-try {
-    logger = require('./logger');
-} catch (_) {
-    logger = null;
-}
+const logger = require('./logger');
 
 // --- FILE PATHS ---
 const configPath = path.join(__dirname, CONSTANTS.CONFIG_FILE);
@@ -305,87 +301,221 @@ const logService = {
     }
 };
 
+// --- STATS SERVICE ---
+const statsService = {
+    formatDuration(ms) {
+        const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+        const days = Math.floor(totalSeconds / 86400);
+        const hours = Math.floor((totalSeconds % 86400) / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        const parts = [];
+        if (days) parts.push(`${days}d`);
+        if (hours || days) parts.push(`${hours}h`);
+        if (minutes || hours || days) parts.push(`${minutes}m`);
+        parts.push(`${seconds}s`);
+        return parts.join(' ');
+    },
+
+    formatTime(timestamp) {
+        if (!timestamp) return '-';
+        return new Date(timestamp).toLocaleString('id-ID', {
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            day: '2-digit', month: 'short'
+        });
+    },
+
+    getSnapshot(config) {
+        const runtimeStats = state.stats || {};
+        const commandStats = runtimeStats.commands || { total: 0, byType: {}, recent: [], last: null };
+        const captchaStats = runtimeStats.captcha || { detected: 0, solved: 0, lastDetectedAt: null, lastSolvedAt: null };
+        const uptimeMs = Date.now() - (state.startedAt || Date.now());
+        const { statusText, statusClass } = configManager.computeStatus(config);
+
+        return {
+            status: {
+                text: statusText,
+                className: statusClass,
+                activeChannelId: state.activeChannelId || '-',
+                channelsTotal: Array.isArray(config.channels) ? config.channels.length : 0,
+                running: !!config.botStatus?.running,
+                paused: !!config.botStatus?.paused,
+                captchaActive: !!state.hasActiveCaptcha,
+                autosolver: !!config.autosolver,
+                telegram: !!(config.settings?.telegram?.token && config.settings?.telegram?.chatId)
+            },
+            commands: {
+                total: commandStats.total || 0,
+                byType: commandStats.byType || {},
+                recent: Array.isArray(commandStats.recent) ? commandStats.recent : [],
+                last: commandStats.last || null
+            },
+            captcha: {
+                detected: captchaStats.detected || 0,
+                solved: captchaStats.solved || 0,
+                active: !!state.hasActiveCaptcha,
+                lastDetectedAt: captchaStats.lastDetectedAt || null,
+                lastSolvedAt: captchaStats.lastSolvedAt || null
+            },
+            uptime: {
+                ms: uptimeMs,
+                text: this.formatDuration(uptimeMs),
+                startedAt: this.formatTime(state.startedAt)
+            }
+        };
+    }
+};
+
 // --- UI COMPONENTS ---
 const uiComponents = {
     getStyles() {
         return `
         <style>
-            :root { 
-                --bg: #0f0f13; --card: #1b1b22; --accent: #5865F2; 
-                --text: #dcddde; --green: #3ba55c; --red: #ed4245;
-                --yellow: #faa81a; --border: #2f2f36;
+            :root {
+                --bg: #f5f7fb;
+                --panel: #ffffff;
+                --panel-soft: #f9fafc;
+                --text: #222733;
+                --muted: #667085;
+                --border: #e4e7ec;
+                --accent: #5865f2;
+                --green: #219653;
+                --red: #d92d20;
+                --yellow: #b7791f;
+                --blue-soft: #eef2ff;
+                --green-soft: #ecfdf3;
+                --red-soft: #fff1f0;
+                --yellow-soft: #fffaeb;
+                --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
             }
-            * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
-            body { background: var(--bg); color: var(--text); padding: 20px; font-size: 14px; }
-            .container { max-width: 500px; margin: 0 auto; padding-bottom: 50px; }
-            h2 { text-align: center; color: var(--accent); margin-bottom: 20px; font-weight: 700; letter-spacing: -0.5px; }
-            .status-box { padding: 15px; border-radius: 8px; text-align: center; font-weight: 700; margin-bottom: 20px; border: 1px solid var(--border); transition: all 0.2s; }
-            .running { background: rgba(59, 165, 92, 0.15); color: var(--green); border-color: var(--green); }
-            .paused { background: rgba(237, 66, 69, 0.15); color: var(--red); border-color: var(--red); }
-            .offline { background: rgba(114, 118, 125, 0.15); color: #b9bbbe; border-color: #4f545c; }
-            
-            /* Profile Box Style */
-            .profile-box {
-                display: flex; align-items: center; justify-content: center; gap: 10px; 
-                margin-top: 12px; padding: 8px; background: rgba(0,0,0,0.25); border-radius: 8px;
-                font-weight: normal; font-size: 13px; color: #b9bbbe;
-            }
-            .profile-box img { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--accent); }
-            .profile-preview {
-                display: none; align-items: center; gap: 8px; margin-top: 8px; padding: 10px;
-                background: rgba(88, 101, 242, 0.12); border: 1px solid rgba(88, 101, 242, 0.35);
-                border-radius: 8px; color: white; font-size: 13px;
-            }
+            * { box-sizing: border-box; margin: 0; padding: 0; font-family: Inter, 'Segoe UI', system-ui, sans-serif; }
+            body { background: var(--bg); color: var(--text); padding: 18px; font-size: 14px; }
+            .container { max-width: 980px; margin: 0 auto; padding-bottom: 48px; }
+            h2 { text-align: center; color: var(--text); margin-bottom: 16px; font-weight: 800; letter-spacing: -0.03em; }
+            .subtitle { text-align: center; color: var(--muted); margin: -10px 0 18px; }
+            .status-box { padding: 16px; border-radius: 16px; text-align: center; font-weight: 700; margin-bottom: 16px; border: 1px solid var(--border); background: var(--panel); }
+            .running { color: var(--green); border-color: #abefc6; background: var(--green-soft); }
+            .paused { color: var(--red); border-color: #fecdca; background: var(--red-soft); }
+            .offline { color: var(--muted); border-color: var(--border); background: var(--panel); }
+            .profile-box { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; padding: 10px; background: rgba(255,255,255,0.65); border: 1px solid var(--border); border-radius: 12px; font-weight: 500; font-size: 13px; color: var(--muted); }
+            .profile-box img { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); }
+            .profile-preview { display: none; align-items: center; gap: 8px; margin-top: 8px; padding: 10px; background: var(--blue-soft); border: 1px solid #d8defe; border-radius: 10px; color: var(--text); font-size: 13px; }
             .profile-preview.visible { display: flex; }
             .profile-preview strong { color: var(--accent); }
-            
-            .tabs-wrapper { display: flex; background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 15px; overflow: hidden; }
-            .tab-btn { flex: 1; padding: 12px; background: transparent; color: #8e9297; border: none; cursor: pointer; font-weight: 600; transition: all 0.2s; font-size: 14px; }
-            .tab-btn:hover { color: white; background: rgba(255, 255, 255, 0.05); }
+            .tabs-wrapper { display: flex; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 15px; overflow: hidden; }
+            .tab-btn { flex: 1; padding: 13px; background: transparent; color: var(--muted); border: none; cursor: pointer; font-weight: 700; font-size: 14px; }
+            .tab-btn:hover { background: var(--panel-soft); color: var(--text); }
             .tab-btn.active { background: var(--accent); color: white; }
-            .tab-content { display: none; animation: fadeIn 0.3s; }
+            .tab-content { display: none; }
             .tab-content.active { display: block; }
-            @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-            
-            .card { background: var(--card); padding: 16px; border-radius: 12px; margin-bottom: 16px; border: 1px solid var(--border); box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
-            label { display: block; margin-top: 10px; font-size: 0.8em; color: #8e9297; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+            .card { background: var(--panel); padding: 16px; border-radius: 16px; margin-bottom: 16px; border: 1px solid var(--border); }
+            .card-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+            label, .section-label { display: block; margin-top: 10px; font-size: 0.78em; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
             label:first-child { margin-top: 0; }
-            input[type=text], input[type=password], input[type=number], select.input-select { 
-                width: 100%; padding: 12px; margin-top: 5px; background: #202225; border: 1px solid var(--border); 
-                color: white; border-radius: 8px; outline: none; transition: all 0.2s; font-size: 14px; font-family: inherit;
+            input[type=text], input[type=password], input[type=number], select.input-select {
+                width: 100%; padding: 12px; margin-top: 5px; background: var(--panel-soft); border: 1px solid var(--border);
+                color: var(--text); border-radius: 10px; outline: none; font-size: 14px; font-family: inherit;
             }
             select.input-select { appearance: auto; cursor: pointer; }
-            input:focus, select.input-select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2); }
+            input:focus, select.input-select:focus { border-color: var(--accent); }
             input[type=checkbox] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent); }
-            
             .row { display: flex; gap: 10px; margin-top: 8px; }
             .col { flex: 1; }
-            .toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+            .toggle-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
             .toggle-row:last-child { border-bottom: none; }
-            .btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px; transition: all 0.2s; letter-spacing: 0.3px; }
-            .btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
-            .btn:active { transform: translateY(0); }
+            .btn { width: 100%; padding: 14px; border: 1px solid transparent; border-radius: 10px; font-weight: 800; cursor: pointer; font-size: 14px; letter-spacing: 0.01em; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+            .btn:hover { filter: brightness(0.98); }
             .btn-save { background: var(--accent); color: white; }
             .btn-start { background: var(--green); color: white; flex: 1; }
             .btn-pause { background: var(--red); color: white; flex: 1; }
+            .btn-secondary { background: var(--panel); color: var(--text); border-color: var(--border); }
             .action-group { display: flex; gap: 10px; margin-bottom: 16px; }
             .divider { border-top: 1px solid var(--border); margin: 16px 0; }
-            
-            .log-box { background: #0c0c10; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5; overflow-y: auto; max-height: 200px; }
-            .log-box::-webkit-scrollbar { width: 6px; }
-            .log-box::-webkit-scrollbar-track { background: #0c0c10; }
-            .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-            .input-hint { font-size: 11px; color: #72767d; margin-top: 4px; }
-            .telegram-badge { background: rgba(88, 101, 242, 0.1); border: 1px solid var(--accent); border-radius: 4px; padding: 4px 8px; font-size: 11px; color: var(--accent); display: inline-block; }
+            .dashboard-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+            .stat-card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 14px; }
+            .stat-label { color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+            .stat-value { color: var(--text); font-size: 24px; font-weight: 850; line-height: 1.1; }
+            .stat-note { color: var(--muted); font-size: 12px; margin-top: 7px; overflow-wrap: anywhere; }
+            .info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+            .info-item { background: var(--panel-soft); border: 1px solid var(--border); border-radius: 12px; padding: 10px; }
+            .pill-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+            .pill { border: 1px solid var(--border); background: var(--panel-soft); border-radius: 999px; padding: 7px 10px; font-size: 12px; color: var(--text); }
+            .log-box { background: #101828; color: #e4e7ec; border: 1px solid #1d2939; border-radius: 14px; padding: 0; font-family: var(--mono); font-size: 12px; line-height: 1.45; overflow-y: auto; max-height: 260px; }
+            .log-line { display: grid; grid-template-columns: 72px 76px 1fr; gap: 8px; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.06); white-space: pre-wrap; word-break: break-word; }
+            .log-line:last-child { border-bottom: none; }
+            .log-time { color: #98a2b3; }
+            .log-level { color: #c7d7fe; font-weight: 800; }
+            .log-empty { padding: 16px; color: #98a2b3; }
+            .input-hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
+            .telegram-badge { background: var(--blue-soft); border: 1px solid #d8defe; border-radius: 999px; padding: 5px 9px; font-size: 11px; color: var(--accent); display: inline-block; margin-top: 8px; }
+            @media (max-width: 760px) { .dashboard-grid, .info-grid { grid-template-columns: 1fr; } .row, .action-group { flex-direction: column; } .log-line { grid-template-columns: 1fr; gap: 2px; } }
         </style>
+        `;
+    },
+
+    getDashboardStatsCard(snapshot) {
+        const commandTypes = Object.entries(snapshot.commands.byType || {})
+            .sort((a, b) => b[1] - a[1])
+            .map(([type, total]) => `<span class="pill">${escapeHtml(type)}: <strong>${total}</strong></span>`)
+            .join('') || '<span class="pill">Belum ada command</span>';
+
+        const lastCommand = snapshot.commands.last
+            ? `${snapshot.commands.last.cmd} • ${snapshot.commands.last.type}`
+            : 'Belum ada command terkirim';
+
+        return `
+        <div class="dashboard-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="stat-label">Total Command</div>
+                <div class="stat-value" data-stat="commandTotal">${snapshot.commands.total}</div>
+                <div class="stat-note" data-stat="lastCommand">${escapeHtml(lastCommand)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Captcha</div>
+                <div class="stat-value" data-stat="captchaSolved">${snapshot.captcha.solved}/${snapshot.captcha.detected}</div>
+                <div class="stat-note" data-stat="captchaStatus">${snapshot.captcha.active ? 'Aktif - butuh perhatian' : 'Aman, tidak aktif'}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Uptime</div>
+                <div class="stat-value" data-stat="uptimeText">${escapeHtml(snapshot.uptime.text)}</div>
+                <div class="stat-note" data-stat="startedAt">Start: ${escapeHtml(snapshot.uptime.startedAt)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Status Info</div>
+                <div class="stat-value" data-stat="statusText" style="font-size: 18px;">${escapeHtml(snapshot.status.text)}</div>
+                <div class="stat-note" data-stat="statusNote">Channel aktif: ${escapeHtml(snapshot.status.activeChannelId)}</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">
+                <label class="section-label">📊 Statistik Command per Tipe</label>
+                <a class="btn btn-secondary" style="width:auto; padding: 9px 12px;" href="/export-config">⬇ Export Config</a>
+            </div>
+            <div id="commandTypes" class="pill-list">${commandTypes}</div>
+            <div class="divider"></div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="stat-label">Captcha terselesaikan</div>
+                    <div class="stat-note" data-stat="captchaLastSolved">Terakhir: ${escapeHtml(statsService.formatTime(snapshot.captcha.lastSolvedAt))}</div>
+                </div>
+                <div class="info-item">
+                    <div class="stat-label">Status layanan</div>
+                    <div class="stat-note" data-stat="serviceFlags">Autosolver: ${snapshot.status.autosolver ? 'ON' : 'OFF'} • Telegram: ${snapshot.status.telegram ? 'ON' : 'OFF'} • Channel: ${snapshot.status.channelsTotal}</div>
+                </div>
+            </div>
+        </div>
         `;
     },
 
     getLogCard() {
         return `
         <div class="card">
-            <label>🖥️ Console Log (Last ${CONSTANTS.MAX_LOG_LINES})</label>
-            <pre id="logBox" class="log-box">(loading...)</pre>
+            <div class="card-title">
+                <label class="section-label">🧾 Log Dashboard</label>
+                <span class="stat-note">Rapi, ringan, tanpa efek</span>
+            </div>
+            <div id="logBox" class="log-box"><div class="log-empty">(loading...)</div></div>
         </div>
         `;
     },
@@ -396,23 +526,81 @@ const uiComponents = {
         <script>
             (function() {
                 let retryCount = 0;
+                function parseLogLine(line) {
+                    const match = String(line || '').match(/^(\[[^\]]+\])\s+(\[[^\]]+\])\s+(.*)$/);
+                    if (!match) return { time: '', level: '', message: line || '' };
+                    return { time: match[1], level: match[2], message: match[3] };
+                }
+
+                function renderLogs(lines) {
+                    const logBox = document.getElementById('logBox');
+                    if (!logBox) return;
+                    if (!lines || !lines.length) {
+                        logBox.innerHTML = '<div class="log-empty">✨ Belum ada log...</div>';
+                        return;
+                    }
+                    logBox.innerHTML = lines.map(line => {
+                        const item = parseLogLine(line);
+                        return '<div class="log-line">' +
+                            '<span class="log-time">' + escapeHtml(item.time) + '</span>' +
+                            '<span class="log-level">' + escapeHtml(item.level) + '</span>' +
+                            '<span>' + escapeHtml(item.message) + '</span>' +
+                        '</div>';
+                    }).join('');
+                    logBox.scrollTop = logBox.scrollHeight;
+                }
+
                 async function refreshLogs() {
                     try {
                         const res = await fetch('/logs', { cache: 'no-store', headers: { 'Accept': 'application/json' }});
                         if (!res.ok) throw new Error('HTTP Error');
                         const data = await res.json();
-                        const logBox = document.getElementById('logBox');
-                        if (logBox) {
-                            logBox.textContent = data.lines.length ? data.lines.join('\\n') : '✨ No logs yet...';
-                            retryCount = 0;
-                        }
+                        renderLogs(data.lines);
+                        retryCount = 0;
                     } catch (err) {
                         retryCount++;
-                        const logBox = document.getElementById('logBox');
-                        if (logBox) logBox.textContent = retryCount <= 3 ? '⏳ Reconnecting...' : '📡 Log service unavailable';
+                        renderLogs([retryCount <= 3 ? '[--:--:--] [INFO] ⏳ Reconnecting...' : '[--:--:--] [WARN] 📡 Log service unavailable']);
                     }
                 }
+
+                function updateText(selector, text) {
+                    const el = document.querySelector(selector);
+                    if (el) el.textContent = text;
+                }
+
+                function renderCommandTypes(byType) {
+                    const target = document.getElementById('commandTypes');
+                    if (!target) return;
+                    const entries = Object.entries(byType || {}).sort((a, b) => b[1] - a[1]);
+                    target.innerHTML = entries.length
+                        ? entries.map(([type, total]) => '<span class="pill">' + escapeHtml(type) + ': <strong>' + total + '</strong></span>').join('')
+                        : '<span class="pill">Belum ada command</span>';
+                }
+
+                async function refreshStats() {
+                    try {
+                        const res = await fetch('/api/stats', { cache: 'no-store', headers: { 'Accept': 'application/json' }});
+                        if (!res.ok) throw new Error('HTTP Error');
+                        const data = await res.json();
+                        const lastCommand = data.commands.last ? data.commands.last.cmd + ' • ' + data.commands.last.type : 'Belum ada command terkirim';
+                        updateText('[data-stat="commandTotal"]', data.commands.total);
+                        updateText('[data-stat="lastCommand"]', lastCommand);
+                        updateText('[data-stat="captchaSolved"]', data.captcha.solved + '/' + data.captcha.detected);
+                        updateText('[data-stat="captchaStatus"]', data.captcha.active ? 'Aktif - butuh perhatian' : 'Aman, tidak aktif');
+                        updateText('[data-stat="uptimeText"]', data.uptime.text);
+                        updateText('[data-stat="startedAt"]', 'Start: ' + data.uptime.startedAt);
+                        updateText('[data-stat="statusText"]', data.status.text);
+                        updateText('[data-stat="statusNote"]', 'Channel aktif: ' + data.status.activeChannelId);
+                        updateText('[data-stat="captchaLastSolved"]', 'Terakhir: ' + (data.captcha.lastSolvedAtFormatted || '-'));
+                        updateText('[data-stat="serviceFlags"]', 'Autosolver: ' + (data.status.autosolver ? 'ON' : 'OFF') + ' • Telegram: ' + (data.status.telegram ? 'ON' : 'OFF') + ' • Channel: ' + data.status.channelsTotal);
+                        renderCommandTypes(data.commands.byType);
+                    } catch (err) {
+                        updateText('[data-stat="statusNote"]', 'Statistik belum bisa diperbarui');
+                    }
+                }
+
                 refreshLogs(); setInterval(refreshLogs, ${CONSTANTS.LOG_REFRESH_INTERVAL_MS});
+                refreshStats(); setInterval(refreshStats, 1000);
                 
                 // AUTO FETCH PROFILE SCRIPT
                 async function fetchProfile() {
@@ -430,7 +618,7 @@ const uiComponents = {
                             profileBox.innerHTML = \`
                                 <img src="\${avatarUrl}" alt="Avatar">
                                 <div>
-                                    <div style="color: white; font-weight: bold; font-size: 14px;">\${name}</div>
+                                    <div style="color: var(--text); font-weight: bold; font-size: 14px;">\${name}</div>
                                     <div style="font-size: 11px; color: #8e9297;">@\${data.username} (\${data.id})</div>
                                 </div>
                             \`;
@@ -516,6 +704,7 @@ const uiComponents = {
         const boss = config.settings.boss || {};
         const msgFilter = config.settings.messageFilter || {};
         const voice = config.settings.voice || {};
+        const statsSnapshot = statsService.getSnapshot(config);
 
         const profiles = profileManager.getSavedProfiles();
         const activeProfileId = profileManager.getUserId(config.token);
@@ -537,7 +726,8 @@ const uiComponents = {
         </head>
         <body>
             <div class="container">
-                <h2>⚡ OWO 😘 PANEL</h2>
+                <h2>OWO Farming Dashboard</h2>
+                <div class="subtitle">Panel ringkas, nyaman, dan ringan untuk monitoring bot.</div>
                 
                 <div class="status-box ${statusClass}">
                     <span style="font-size: 16px;">${statusText}</span>
@@ -549,6 +739,7 @@ const uiComponents = {
                     ${hasTelegram ? '<div class="telegram-badge">📱 Telegram Active</div>' : ''}
                 </div>
 
+                ${this.getDashboardStatsCard(statsSnapshot)}
                 ${this.getLogCard()}
 
                 <form action="/save" method="POST">
@@ -893,6 +1084,35 @@ app.get('/logs', (req, res) => {
         res.json({ lines });
     } catch {
         res.status(500).json({ lines: [] });
+    }
+});
+
+app.get('/api/stats', (req, res) => {
+    try {
+        const config = configManager.ensureShape(configManager.get());
+        const snapshot = statsService.getSnapshot(config);
+        snapshot.captcha.lastDetectedAtFormatted = statsService.formatTime(snapshot.captcha.lastDetectedAt);
+        snapshot.captcha.lastSolvedAtFormatted = statsService.formatTime(snapshot.captcha.lastSolvedAt);
+        res.setHeader('Cache-Control', 'no-store');
+        res.json(snapshot);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/export-config', (req, res) => {
+    try {
+        const config = configManager.ensureShape(configManager.get());
+        const activeId = profileManager.getUserId(config.token);
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `owo-config-${activeId}-${timestamp}.json`;
+
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Cache-Control', 'no-store');
+        res.send(JSON.stringify(config, null, 2));
+    } catch (error) {
+        res.status(500).send(`Failed to export config: ${error.message}`);
     }
 });
 
