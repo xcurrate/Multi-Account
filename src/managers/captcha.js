@@ -87,10 +87,6 @@ module.exports = (state, configManager, loopManager, telegramService, channelMan
             this.isHandlingProcess = true;
 
             log.captcha("⛔ CAPTCHA! Bot Paused.");
-            state.stats = state.stats || {};
-            state.stats.captcha = state.stats.captcha || { detected: 0, solved: 0, lastDetectedAt: null, lastSolvedAt: null };
-            state.stats.captcha.detected += 1;
-            state.stats.captcha.lastDetectedAt = Date.now();
             state.config.botStatus.paused = true;
             state.config.botStatus.running = false;
             state.hasActiveCaptcha = true;
@@ -218,11 +214,6 @@ module.exports = (state, configManager, loopManager, telegramService, channelMan
         async resume() {
             state.captchaSolveRunId = (state.captchaSolveRunId || 0) + 1;
             abortActiveSolver();
-
-            state.stats = state.stats || {};
-            state.stats.captcha = state.stats.captcha || { detected: 0, solved: 0, lastDetectedAt: null, lastSolvedAt: null };
-            state.stats.captcha.solved += 1;
-            state.stats.captcha.lastSolvedAt = Date.now();
 
             log.success("✅ Resuming Bot...");
             telegramService.send("🎉 <b>Captcha Selesai!</b>\nAkun terbebas.");

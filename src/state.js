@@ -1,20 +1,5 @@
 // --- STATE MANAGEMENT ---
 module.exports = {
-    startedAt: Date.now(),
-    stats: {
-        commands: {
-            total: 0,
-            byType: {},
-            recent: [],
-            last: null
-        },
-        captcha: {
-            detected: 0,
-            solved: 0,
-            lastDetectedAt: null,
-            lastSolvedAt: null
-        }
-    },
     client: null,
     config: {},
     activeToken: '',
