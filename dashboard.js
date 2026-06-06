@@ -355,19 +355,6 @@ const discordApiService = {
 
 // --- UI COMPONENTS ---
 const uiComponents = {
-    escapeHtml(value) {
-        return String(value ?? '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    },
-
-    safeScriptJson(value) {
-        return JSON.stringify(value).replace(/</g, '\\u003c');
-    },
-
     getStyles() {
         return `
         <style>
@@ -392,8 +379,6 @@ const uiComponents = {
                 font-weight: normal; font-size: 13px; color: #b9bbbe;
             }
             .profile-box img { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--accent); }
-            .profile-preview { margin-top: 10px; padding: 10px 12px; background: rgba(88, 101, 242, 0.08); border: 1px solid rgba(88, 101, 242, 0.3); border-radius: 8px; color: #d7dcff; font-size: 13px; }
-            .profile-preview strong { color: white; }
             
             .tabs-wrapper { display: flex; background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 15px; overflow: hidden; }
             .tab-btn { flex: 1; padding: 12px; background: transparent; color: #8e9297; border: none; cursor: pointer; font-weight: 600; transition: all 0.2s; font-size: 14px; }
@@ -497,29 +482,6 @@ const uiComponents = {
                     }
                 }
                 fetchProfile(); // Panggil saat halaman dimuat
-
-                const profileSummaries = __PROFILE_SUMMARIES__;
-                const profileSelect = document.getElementById('selectedProfile');
-                const profilePreview = document.getElementById('profilePreview');
-
-                function updateProfilePreview() {
-                    if (!profileSelect || !profilePreview) return;
-
-                    const selectedId = profileSelect.value;
-                    const summary = profileSummaries[selectedId];
-
-                    if (!selectedId || !summary) {
-                        profilePreview.textContent = 'Pilih profil untuk melihat preview akun.';
-                        return;
-                    }
-
-                    profilePreview.innerHTML = '<strong>Preview:</strong> ' + summary.previewName;
-                }
-
-                if (profileSelect) {
-                    profileSelect.addEventListener('change', updateProfilePreview);
-                    updateProfilePreview();
-                }
             })();
             
             function switchTab(event, tabId) {
@@ -559,12 +521,6 @@ const uiComponents = {
 
         const profiles = profileManager.getSavedProfiles();
         const activeProfileId = profileManager.getUserId(config.token);
-        const profileSummaries = profiles.reduce((acc, id) => {
-            const meta = profileManager.getProfileMeta(id);
-            const previewName = meta?.globalName || (meta?.username ? `@${meta.username}` : `Profil ${id}`);
-            acc[id] = { previewName: this.escapeHtml(previewName) };
-            return acc;
-        }, {});
 
         return `
         <!DOCTYPE html>
@@ -610,20 +566,15 @@ const uiComponents = {
                             <div style="margin-bottom: 12px;">
                                 <div class="row">
                                     <div class="col">
-                                        <select id="selectedProfile" name="selectedProfile" class="input-select">
+                                        <select name="selectedProfile" class="input-select">
                                             <option value="">-- Pilih Profil Tersimpan --</option>
-                                            ${profiles.map(p => {
-                                                const displayName = profileManager.getProfileDisplayName(p);
-                                                const label = p === activeProfileId ? `✅ ${displayName} (Aktif)` : displayName;
-                                                return `<option value="${this.escapeHtml(p)}">${this.escapeHtml(label)}</option>`;
-                                            }).join('')}
+                                            ${profiles.map(p => `<option value="${p}">${p === activeProfileId ? `✅ ${profileManager.getProfileDisplayName(p)} (Aktif)` : profileManager.getProfileDisplayName(p)}</option>`).join('')}
                                         </select>
                                     </div>
                                     <div class="col" style="flex: 0.4;">
                                         <button type="submit" name="action" value="loadProfile" class="btn" style="background: var(--yellow); color: black;">📂 LOAD</button>
                                     </div>
                                 </div>
-                                <div id="profilePreview" class="profile-preview">Pilih profil untuk melihat preview akun.</div>
                                 <div class="input-hint">Pilih akun lalu klik LOAD untuk memuat ulang pengaturan (config).</div>
                             </div>
 
@@ -853,7 +804,7 @@ const uiComponents = {
                 </form>
             </div>
 
-            ${this.getLogRefreshScript().replace('__PROFILE_SUMMARIES__', this.safeScriptJson(profileSummaries))}
+            ${this.getLogRefreshScript()}
         </body>
         </html>
         `;
@@ -893,11 +844,7 @@ app.get('/api/profile', (req, res) => {
         response.on('data', (chunk) => { data += chunk; });
         response.on('end', () => {
             try {
-                const profileData = JSON.parse(data);
-                if (profileData.id && profileData.username) {
-                    profileManager.saveProfileMeta(profileData.id, profileData.username, profileData.global_name, profileData.avatar);
-                }
-                res.json(profileData);
+                res.json(JSON.parse(data));
             } catch (e) {
                 res.status(500).json({ error: 'Gagal membaca data dari Discord' });
             }
