@@ -311,50 +311,62 @@ const uiComponents = {
         return `
         <style>
             :root { 
-                --bg: #0f0f13; --card: #1b1b22; --accent: #5865F2; 
-                --text: #dcddde; --green: #3ba55c; --red: #ed4245;
-                --yellow: #faa81a; --border: #2f2f36;
+                color-scheme: dark;
+                --bg: #0b0d12; --bg-soft: #11131a; --card: #181b23; --card-raised: #20242e;
+                --accent: #7c86ff; --accent-strong: #5865F2; --text: #f2f3f5; --muted: #a6adbb;
+                --green: #3ba55c; --red: #ed4245; --yellow: #faa81a; --border: #303544;
+                --input-bg: #10131a; --shadow: rgba(0, 0, 0, 0.35);
             }
             * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
-            body { background: var(--bg); color: var(--text); padding: 20px; font-size: 14px; }
+            html { min-height: 100%; background: var(--bg); }
+            body {
+                min-height: 100vh; background: radial-gradient(circle at top, #171a29 0%, var(--bg) 42%, #07080c 100%);
+                color: var(--text); padding: 20px; font-size: 14px;
+            }
             .container { max-width: 500px; margin: 0 auto; padding-bottom: 50px; }
             h2 { text-align: center; color: var(--accent); margin-bottom: 20px; font-weight: 700; letter-spacing: -0.5px; }
             .status-box { padding: 15px; border-radius: 8px; text-align: center; font-weight: 700; margin-bottom: 20px; border: 1px solid var(--border); transition: all 0.2s; }
             .running { background: rgba(59, 165, 92, 0.15); color: var(--green); border-color: var(--green); }
             .paused { background: rgba(237, 66, 69, 0.15); color: var(--red); border-color: var(--red); }
-            .offline { background: rgba(114, 118, 125, 0.15); color: #b9bbbe; border-color: #4f545c; }
+            .offline { background: rgba(114, 118, 125, 0.15); color: var(--muted); border-color: #4f545c; }
             
             /* Profile Box Style */
             .profile-box {
                 display: flex; align-items: center; justify-content: center; gap: 10px; 
                 margin-top: 12px; padding: 8px; background: rgba(0,0,0,0.25); border-radius: 8px;
-                font-weight: normal; font-size: 13px; color: #b9bbbe;
+                font-weight: normal; font-size: 13px; color: var(--muted);
             }
             .profile-box img { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--accent); }
             .profile-preview {
                 display: none; align-items: center; gap: 8px; margin-top: 8px; padding: 10px;
                 background: rgba(88, 101, 242, 0.12); border: 1px solid rgba(88, 101, 242, 0.35);
-                border-radius: 8px; color: white; font-size: 13px;
+                border-radius: 8px; color: var(--text); font-size: 13px;
             }
             .profile-preview.visible { display: flex; }
             .profile-preview strong { color: var(--accent); }
             
             .tabs-wrapper { display: flex; background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 15px; overflow: hidden; }
-            .tab-btn { flex: 1; padding: 12px; background: transparent; color: #8e9297; border: none; cursor: pointer; font-weight: 600; transition: all 0.2s; font-size: 14px; }
-            .tab-btn:hover { color: white; background: rgba(255, 255, 255, 0.05); }
-            .tab-btn.active { background: var(--accent); color: white; }
+            .tab-btn { flex: 1; padding: 12px; background: transparent; color: var(--muted); border: none; cursor: pointer; font-weight: 600; transition: all 0.2s; font-size: 14px; }
+            .tab-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+            .tab-btn.active { background: var(--accent-strong); color: #fff; }
             .tab-content { display: none; animation: fadeIn 0.3s; }
             .tab-content.active { display: block; }
             @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
             
-            .card { background: var(--card); padding: 16px; border-radius: 12px; margin-bottom: 16px; border: 1px solid var(--border); box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
-            label { display: block; margin-top: 10px; font-size: 0.8em; color: #8e9297; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+            .card { background: linear-gradient(180deg, var(--card-raised), var(--card)); padding: 16px; border-radius: 12px; margin-bottom: 16px; border: 1px solid var(--border); box-shadow: 0 10px 24px var(--shadow); }
+            label { display: block; margin-top: 10px; font-size: 0.8em; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
             label:first-child { margin-top: 0; }
             input[type=text], input[type=password], input[type=number], select.input-select { 
-                width: 100%; padding: 12px; margin-top: 5px; background: #202225; border: 1px solid var(--border); 
-                color: white; border-radius: 8px; outline: none; transition: all 0.2s; font-size: 14px; font-family: inherit;
+                width: 100%; padding: 12px; margin-top: 5px; background: var(--input-bg); border: 1px solid var(--border); 
+                color: var(--text); border-radius: 8px; outline: none; transition: all 0.2s; font-size: 14px; font-family: inherit;
             }
-            select.input-select { appearance: auto; cursor: pointer; }
+            select.input-select { appearance: auto; cursor: pointer; color-scheme: dark; }
+            select.input-select option { background: var(--input-bg); color: var(--text); }
+            input::placeholder { color: #697080; opacity: 1; }
+            input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
+                -webkit-text-fill-color: var(--text); caret-color: var(--text);
+                box-shadow: 0 0 0 1000px var(--input-bg) inset; transition: background-color 9999s ease-in-out 0s;
+            }
             input:focus, select.input-select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2); }
             input[type=checkbox] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent); }
             
@@ -365,9 +377,9 @@ const uiComponents = {
             .btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px; transition: all 0.2s; letter-spacing: 0.3px; }
             .btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
             .btn:active { transform: translateY(0); }
-            .btn-save { background: var(--accent); color: white; }
-            .btn-start { background: var(--green); color: white; flex: 1; }
-            .btn-pause { background: var(--red); color: white; flex: 1; }
+            .btn-save { background: var(--accent-strong); color: #fff; }
+            .btn-start { background: var(--green); color: #fff; flex: 1; }
+            .btn-pause { background: var(--red); color: #fff; flex: 1; }
             .action-group { display: flex; gap: 10px; margin-bottom: 16px; }
             .divider { border-top: 1px solid var(--border); margin: 16px 0; }
             
@@ -375,7 +387,7 @@ const uiComponents = {
             .log-box::-webkit-scrollbar { width: 6px; }
             .log-box::-webkit-scrollbar-track { background: #0c0c10; }
             .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-            .input-hint { font-size: 11px; color: #72767d; margin-top: 4px; }
+            .input-hint { font-size: 11px; color: #858d9d; margin-top: 4px; }
             .telegram-badge { background: rgba(88, 101, 242, 0.1); border: 1px solid var(--accent); border-radius: 4px; padding: 4px 8px; font-size: 11px; color: var(--accent); display: inline-block; }
         </style>
         `;
@@ -494,8 +506,8 @@ const uiComponents = {
 
     getSavedResponse() {
         return `
-        <!DOCTYPE html><html><head><meta http-equiv="refresh" content="${CONSTANTS.REDIRECT_DELAY_SECONDS};url=/" />
-        <style>body { background: #0f0f13; color: white; text-align: center; padding-top: 50px; font-family: 'Segoe UI', sans-serif;}
+        <!DOCTYPE html><html><head><meta name="color-scheme" content="dark"><meta http-equiv="refresh" content="${CONSTANTS.REDIRECT_DELAY_SECONDS};url=/" />
+        <style>:root { color-scheme: dark; } body { background: radial-gradient(circle at top, #171a29 0%, #0b0d12 42%, #07080c 100%); color: #f2f3f5; text-align: center; padding-top: 50px; font-family: 'Segoe UI', sans-serif;}
         .success { color: #3ba55c; font-size: 48px; margin-bottom: 20px;} .msg { color: #dcddde; font-size: 18px;} .dt { color: #72767d; font-size: 14px; margin-top: 10px;}</style>
         </head><body><div class="success">✅</div><div class="msg">Configuration Processed!</div><div class="dt">Redirecting to dashboard...</div></body></html>
         `;
@@ -532,6 +544,7 @@ const uiComponents = {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="color-scheme" content="dark">
             <title>OWO FARMING</title>
             ${this.getStyles()}
         </head>
@@ -577,7 +590,7 @@ const uiComponents = {
                                         <div id="selectedProfilePreview" class="profile-preview" aria-live="polite"></div>
                                     </div>
                                     <div class="col" style="flex: 0.4;">
-                                        <button type="submit" name="action" value="loadProfile" class="btn" style="background: var(--yellow); color: black;">📂 LOAD</button>
+                                        <button type="submit" name="action" value="loadProfile" class="btn" style="background: var(--yellow); color: #11131a;">📂 LOAD</button>
                                     </div>
                                 </div>
                                 <div class="input-hint">Pilih akun lalu klik LOAD untuk memuat ulang pengaturan (config).</div>
