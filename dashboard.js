@@ -34,14 +34,12 @@ const configPath = path.join(__dirname, CONSTANTS.CONFIG_FILE);
 
 // --- UTILITY FUNCTIONS ---
 const fileService = {
-    readJson(filePath, fallback = {}) {
+    readJson(filePath) {
         try {
             return JSON.parse(fs.readFileSync(filePath, 'utf8'));
         } catch (error) {
-            if (error.code !== 'ENOENT') {
-                console.error(`Error reading JSON from ${filePath}:`, error.message);
-            }
-            return fallback;
+            console.error(`Error reading JSON from ${filePath}:`, error.message);
+            return {};
         }
     },
 
@@ -117,26 +115,6 @@ const profileManager = {
             return `@${meta.username}`;
         }
         return `Akun ${id}`;
-    },
-
-    getAvatarUrl(id, avatar) {
-        return avatar
-            ? `https://cdn.discordapp.com/avatars/${id}/${avatar}.png?size=64`
-            : `https://cdn.discordapp.com/embed/avatars/0.png`;
-    },
-
-    getProfileSummary(id) {
-        const meta = this.getProfileMeta(id);
-        const username = meta?.username || '';
-        const displayName = meta?.globalName || (username ? `@${username}` : `Profil ${id}`);
-
-        return {
-            id,
-            username,
-            displayName,
-            avatarUrl: meta ? this.getAvatarUrl(id, meta.avatar) : '',
-            hasMeta: !!meta
-        };
     }
 };
 
@@ -304,51 +282,6 @@ const logService = {
                 : [];
         } catch {
             return [];
-        }
-    }
-};
-
-// --- DISCORD API SERVICE ---
-const discordApiService = {
-    getCurrentUser(token) {
-        return new Promise((resolve, reject) => {
-            if (!token) return reject(new Error('Tidak ada token.'));
-
-            const options = {
-                hostname: 'discord.com',
-                path: '/api/v9/users/@me',
-                method: 'GET',
-                headers: {
-                    'Authorization': token,
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                }
-            };
-
-            const request = https.request(options, (response) => {
-                let data = '';
-                response.on('data', (chunk) => { data += chunk; });
-                response.on('end', () => {
-                    try {
-                        const profileData = JSON.parse(data);
-                        if (response.statusCode >= 400) {
-                            return reject(new Error(profileData.message || `Discord API HTTP ${response.statusCode}`));
-                        }
-                        resolve(profileData);
-                    } catch (error) {
-                        reject(new Error('Gagal membaca data dari Discord'));
-                    }
-                });
-            });
-
-            request.on('error', reject);
-            request.end();
-        });
-    },
-
-    saveProfileMetaIfValid(profileData) {
-        if (profileData?.id && profileData?.username) {
-            profileManager.saveProfileMeta(profileData.id, profileData.username, profileData.global_name, profileData.avatar);
         }
     }
 };
@@ -851,40 +784,12 @@ app.get('/api/profile', (req, res) => {
         });
     });
 
-        const profileData = await discordApiService.getCurrentUser(token);
-        discordApiService.saveProfileMetaIfValid(profileData);
-        res.json(profileData);
-    } catch (error) {
+    request.on('error', (error) => {
         console.error('API Profile Error:', error.message);
         res.status(500).json({ error: error.message });
-    }
-});
+    });
 
-app.get('/api/profile-preview/:id', async (req, res) => {
-    const targetId = String(req.params.id || '').trim();
-    if (!/^\d+$/.test(targetId)) {
-        return res.status(400).json({ error: 'Profile ID tidak valid.' });
-    }
-
-    const profilePath = profileManager.getProfilePath(targetId);
-    if (!fs.existsSync(profilePath)) {
-        return res.status(404).json({ error: 'Profil tidak ditemukan.' });
-    }
-
-    const profileConfig = fileService.readJson(profilePath);
-    const cachedSummary = profileManager.getProfileSummary(targetId);
-
-    if (!profileConfig.token) {
-        return res.json(cachedSummary);
-    }
-
-    try {
-        const profileData = await discordApiService.getCurrentUser(profileConfig.token);
-        discordApiService.saveProfileMetaIfValid(profileData);
-        return res.json(profileManager.getProfileSummary(targetId));
-    } catch (error) {
-        return res.json({ ...cachedSummary, fetchError: error.message });
-    }
+    request.end();
 });
 
 app.get('/', (req, res) => {
