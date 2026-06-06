@@ -26,16 +26,6 @@ module.exports = (state, channelManager, emergencyHandler) => ({
 
         try {
             await channel.send(cmd);
-
-            const commandType = type || 'Other';
-            state.stats = state.stats || {};
-            state.stats.commands = state.stats.commands || { total: 0, byType: {}, recent: [], last: null };
-            state.stats.commands.total += 1;
-            state.stats.commands.byType[commandType] = (state.stats.commands.byType[commandType] || 0) + 1;
-            state.stats.commands.last = { cmd, type: commandType, at: Date.now() };
-            state.stats.commands.recent.unshift(state.stats.commands.last);
-            state.stats.commands.recent = state.stats.commands.recent.slice(0, 8);
-
             log.info(`📨 Sent: ${cmd} [${type}]`);
 
             // TIMEOUT HANYA UNTUK BATTLE DAN HUNT
