@@ -195,10 +195,21 @@ async custom1() {
         this.init();
         this.stopAll();
 
-        // Boot gap kecil biar tidak "0.x detik beruntun" saat first start
-        // Ini TIDAK mempengaruhi delay loop normal setelahnya.
+        // Pada start pertama setelah proses menyala, command loop dibuat antre 5 detik
+        // agar battle/hunt, pray, dan custom tidak terkirim bersamaan. Start berikutnya
+        // tetap memakai gap kecil dan delay normal yang sudah tersimpan.
+        const isFirstLoopStartup = !state.hasUsedFirstLoopStartupStagger;
+        state.hasUsedFirstLoopStartupStagger = true;
+
         let stagger = 0;
-        const bump = () => (stagger += randomInt(800, 1000));
+        const bump = () => {
+            stagger += isFirstLoopStartup ? 5000 : randomInt(800, 1000);
+            return stagger;
+        };
+
+        if (isFirstLoopStartup) {
+            log.info('⏳ First loop startup: command awal loop diantrikan per 5 detik.');
+        }
 
         if (state.config.settings?.battle)
             setTimeout(() => this._resumeLoop('battle', () => this.battle()), bump());

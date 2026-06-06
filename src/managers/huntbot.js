@@ -361,7 +361,7 @@ if (huntbotState.autoMode) {
     },
 
     // ============== INITIALIZATION ==============
-    init() {
+    init(options = {}) {
         log.info("⚙️ Initializing HuntBot Manager...");
         const config = configManager.read() || {};
         
@@ -376,7 +376,7 @@ if (huntbotState.autoMode) {
         if (isAutoModeOn) {
             log.info("🤖 HuntBot Auto-start detected in config.");
             huntbotState.autoMode = false; // Reset sementara agar startAutoMode bisa me-restart statusnya
-            this.startAutoMode();
+            this.startAutoMode({ skipInitialCheck: options.skipInitialCheck });
         } else {
             log.warn("⚠️ Auto Mode terdeteksi OFF di config.json");
         }
@@ -453,14 +453,18 @@ async checkStatus() {
     },
 
     // ============== AUTO MODE & MONITORING ==============
-    startAutoMode() {
+    startAutoMode(options = {}) {
         if (huntbotState.autoMode) return;
         huntbotState.autoMode = true;
         log.success("🤖 HuntBot Auto Mode ACTIVE");
         telegramService.send("🤖 <b>HuntBot Auto Mode</b>\nStarting auto loop...");
         
         this.startMonitoring();
-        this.checkStatus();
+        if (!options.skipInitialCheck) {
+            this.checkStatus();
+        } else {
+            log.info("🤖 Initial HuntBot check dilewati karena startup ready sequence yang mengirim whb.");
+        }
     },
 
     stopAutoMode() {
