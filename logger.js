@@ -16,14 +16,20 @@ const formatWIB = () => {
 
 // --- LOG BUFFER ---
 const logBuffer = [];
+const plainLogBuffer = [];
 
-function pushLogLine(line) {
+function pushLogLine(line, plainLine = line) {
     const maxLines = constants.MAX_LOG_LINES || 20;
 
     logBuffer.push(line);
+    plainLogBuffer.push(plainLine);
 
     while (logBuffer.length > maxLines) {
         logBuffer.shift();
+    }
+
+    while (plainLogBuffer.length > maxLines) {
+        plainLogBuffer.shift();
     }
 }
 
@@ -43,7 +49,7 @@ function write(levelPlain, levelColored, msg) {
     // simpan versi plain untuk dashboard
     const plainLine = `${timeStr} ${levelPlain} ${msg}`;
 
-    pushLogLine(coloredLine);
+    pushLogLine(coloredLine, plainLine);
 
     render();
 
@@ -59,5 +65,6 @@ module.exports = {
     success: (msg) => write('[OK]', chalk.green('[OK]'), msg),
     battle: (msg) => write('[BATTLE]', chalk.magenta('[BATTLE]'), msg),
     captcha: (msg) => write('[CAPTCHA]', chalk.bgRed.white('[CAPTCHA]'), msg),
-    getRecent: () => logBuffer.slice()
+    getRecent: () => plainLogBuffer.slice(),
+    getRecentColored: () => logBuffer.slice()
 };
