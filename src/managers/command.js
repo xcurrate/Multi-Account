@@ -4,6 +4,10 @@ const { sleep, randomInt } = require('../utils');
 
 module.exports = (state, channelManager, emergencyHandler) => ({
     async send(cmd, type = '') {
+        if (state.hasActiveCaptcha) {
+            log.warn(`⚠️ Command [${cmd}] ditahan: CAPTCHA sedang aktif.`);
+            return;
+        }
         if (state.config.botStatus.paused || !state.config.botStatus.running) return;
         if (!state.client?.isReady()) return;
 
@@ -14,6 +18,11 @@ module.exports = (state, channelManager, emergencyHandler) => ({
 
         await channel.sendTyping();
         await sleep(randomInt(CONSTANTS.MIN_TYPING_DELAY, CONSTANTS.MAX_TYPING_DELAY));
+
+        if (state.hasActiveCaptcha) {
+            log.warn(`⚠️ Command [${cmd}] dibatalkan setelah typing: CAPTCHA sedang aktif.`);
+            return;
+        }
 
         try {
             await channel.send(cmd);

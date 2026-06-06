@@ -2,6 +2,31 @@ const { Client } = require('discord.js-selfbot-v13');
 const log = require('../../logger');
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function waitUntilCaptchaClear(state) {
+    while (state.hasActiveCaptcha) {
+        log.warn('⏸️ Startup command ditahan: CAPTCHA sedang aktif. Menunggu verifikasi...');
+        await wait(1000);
+    }
+}
+
+async function sendStartupCommand(state, channel, cmd) {
+    await waitUntilCaptchaClear(state);
+    if (!state.client?.isReady()) return false;
+
+    await channel.send(cmd);
+    log.info(`🚀 [Startup Ready] Terkirim: ${cmd}`);
+
+    const startedWait = Date.now();
+    while (Date.now() - startedWait < 5000) {
+        await waitUntilCaptchaClear(state);
+        const remaining = 5000 - (Date.now() - startedWait);
+        if (remaining > 0) await wait(Math.min(1000, remaining));
+    }
+
+    return true;
+}
+
 // TAMBAH PARAMETER huntbotManager
 module.exports = (state, configManager, channelManager, messageHandler, telegramService, huntbotManager, voiceManager) => ({
     initialize() {
@@ -29,40 +54,32 @@ module.exports = (state, configManager, channelManager, messageHandler, telegram
                 voiceManager.joinConfigured('restart').catch(err => log.error(`❌ Auto Join VC gagal: ${err.message}`));
             }
 
-            // Di bagian setelah client ready, tambahkan:
-            setTimeout(async () => {
-                // 1. Init tetap dipertahankan
-                if (huntbotManager) {
-                    huntbotManager.init();
-                }
+            if (huntbotManager) {
+                huntbotManager.init({ skipInitialCheck: true });
+            }
 
-                // 2. Langsung tembak "whb" dan "wboss t"
-                try {
-                    // Mengambil channelId secara dinamis dari config
-                    const channelId = state.config.tiketandhb.channelId;
-                    const channel = state.client.channels.cache.get(channelId);
-                    
-                    if (channel) {
-                        log.info("🚀 Menembak command awal secara langsung...");
-                        
-                        // Tembak whb
-                        await channel.send("whb 1d");
-                        
-                        // Jeda 1 detik biar tidak terlalu cepat (anti-spam)
-                        await new Promise(resolve => setTimeout(resolve, 5000)); 
-                        
-                        // Tembak wboss t
-                        await channel.send("wboss t");
-                        
-                        log.info("✅ Auto-command whb dan wboss t berhasil terkirim.");
-                    } else {
-                        log.warn(`⚠️ Channel ${channelId} tidak ditemukan untuk mengirim command awal.`);
+            if (!state.hasRunInitialReadyCommands) {
+                state.hasRunInitialReadyCommands = true;
+
+                setTimeout(async () => {
+                    try {
+                        const channelId = state.config.tiketandhb?.channelId;
+                        const channel = state.client.channels.cache.get(channelId);
+
+                        if (!channel) {
+                            log.warn(`⚠️ Channel ${channelId} tidak ditemukan untuk mengirim command awal.`);
+                            return;
+                        }
+
+                        log.info("🚀 Menjalankan command awal client-ready secara berurutan...");
+                        await sendStartupCommand(state, channel, "whb 1d");
+                        await sendStartupCommand(state, channel, "wboss t");
+                        log.info("✅ Command awal client-ready selesai terkirim berurutan.");
+                    } catch (err) {
+                        log.error(`❌ Gagal mengirim command awal: ${err.message}`);
                     }
-                } catch (err) {
-                    log.error(`❌ Gagal mengirim command awal: ${err.message}`);
-                }
-
-            }, 2000);
+                }, 2000);
+            }
         });
 
 
