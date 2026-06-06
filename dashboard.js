@@ -148,6 +148,7 @@ const configManager = {
         config.settings.boss = config.settings.boss || { enabled: true, allowedGuilds: [] };
         config.settings.messageFilter = config.settings.messageFilter || { enabled: true, channelIds: [], guildIds: [], debug: false, debugOnlyOwO: false };
         config.settings.telegram = config.settings.telegram || { token: "", chatId: "" };
+        config.settings.voice = config.settings.voice || { enabled: false, channelId: "" };
 
         Object.keys(CONSTANTS.DEFAULT_DELAYS).forEach(key => {
             config.delays[key] = {
@@ -212,6 +213,9 @@ const configManager = {
         config.settings.messageFilter.guildIds = this.toArray(body.mfGuildIds);
         config.settings.messageFilter.debug = this.toBool(body.mfDebug);
         config.settings.messageFilter.debugOnlyOwO = this.toBool(body.mfDebugOnlyOwO);
+
+        config.settings.voice.enabled = this.toBool(body.voiceEnabled);
+        config.settings.voice.channelId = body.voiceChannelId || '';
 
         config.huntbot.enabled = this.toBool(body.hbEnabled);
         config.huntbot.autoMode = this.toBool(body.hbAutoMode);
@@ -284,6 +288,19 @@ const logService = {
 
 // --- UI COMPONENTS ---
 const uiComponents = {
+    escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
+
+    safeScriptJson(value) {
+        return JSON.stringify(value).replace(/</g, '\\u003c');
+    },
+
     getStyles() {
         return `
         <style>
@@ -308,6 +325,8 @@ const uiComponents = {
                 font-weight: normal; font-size: 13px; color: #b9bbbe;
             }
             .profile-box img { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--accent); }
+            .profile-preview { margin-top: 10px; padding: 10px 12px; background: rgba(88, 101, 242, 0.08); border: 1px solid rgba(88, 101, 242, 0.3); border-radius: 8px; color: #d7dcff; font-size: 13px; }
+            .profile-preview strong { color: white; }
             
             .tabs-wrapper { display: flex; background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 15px; overflow: hidden; }
             .tab-btn { flex: 1; padding: 12px; background: transparent; color: #8e9297; border: none; cursor: pointer; font-weight: 600; transition: all 0.2s; font-size: 14px; }
@@ -411,6 +430,29 @@ const uiComponents = {
                     }
                 }
                 fetchProfile(); // Panggil saat halaman dimuat
+
+                const profileSummaries = __PROFILE_SUMMARIES__;
+                const profileSelect = document.getElementById('selectedProfile');
+                const profilePreview = document.getElementById('profilePreview');
+
+                function updateProfilePreview() {
+                    if (!profileSelect || !profilePreview) return;
+
+                    const selectedId = profileSelect.value;
+                    const summary = profileSummaries[selectedId];
+
+                    if (!selectedId || !summary) {
+                        profilePreview.textContent = 'Pilih profil untuk melihat preview akun.';
+                        return;
+                    }
+
+                    profilePreview.innerHTML = '<strong>Preview:</strong> ' + summary.previewName;
+                }
+
+                if (profileSelect) {
+                    profileSelect.addEventListener('change', updateProfilePreview);
+                    updateProfilePreview();
+                }
             })();
             
             function switchTab(event, tabId) {
@@ -446,9 +488,16 @@ const uiComponents = {
         const rotation = config.settings.channelRotation || {};
         const boss = config.settings.boss || {};
         const msgFilter = config.settings.messageFilter || {};
+        const voice = config.settings.voice || {};
 
         const profiles = profileManager.getSavedProfiles();
         const activeProfileId = profileManager.getUserId(config.token);
+        const profileSummaries = profiles.reduce((acc, id) => {
+            const meta = profileManager.getProfileMeta(id);
+            const previewName = meta?.globalName || (meta?.username ? `@${meta.username}` : `Profil ${id}`);
+            acc[id] = { previewName: this.escapeHtml(previewName) };
+            return acc;
+        }, {});
 
         return `
         <!DOCTYPE html>
@@ -494,15 +543,20 @@ const uiComponents = {
                             <div style="margin-bottom: 12px;">
                                 <div class="row">
                                     <div class="col">
-                                        <select name="selectedProfile" class="input-select">
+                                        <select id="selectedProfile" name="selectedProfile" class="input-select">
                                             <option value="">-- Pilih Profil Tersimpan --</option>
-                                            ${profiles.map(p => `<option value="${p}">${p === activeProfileId ? `✅ ${profileManager.getProfileDisplayName(p)} (Aktif)` : profileManager.getProfileDisplayName(p)}</option>`).join('')}
+                                            ${profiles.map(p => {
+                                                const displayName = profileManager.getProfileDisplayName(p);
+                                                const label = p === activeProfileId ? `✅ ${displayName} (Aktif)` : displayName;
+                                                return `<option value="${this.escapeHtml(p)}">${this.escapeHtml(label)}</option>`;
+                                            }).join('')}
                                         </select>
                                     </div>
                                     <div class="col" style="flex: 0.4;">
                                         <button type="submit" name="action" value="loadProfile" class="btn" style="background: var(--yellow); color: black;">📂 LOAD</button>
                                     </div>
                                 </div>
+                                <div id="profilePreview" class="profile-preview">Pilih profil untuk melihat preview akun.</div>
                                 <div class="input-hint">Pilih akun lalu klik LOAD untuk memuat ulang pengaturan (config).</div>
                             </div>
 
@@ -668,6 +722,18 @@ const uiComponents = {
                             <input type="text" name="tiketandhbChannel" value="${config.tiketandhb?.channelId || ''}" placeholder="Channel ID">
                         </div>
 
+
+                        <div class="card">
+                            <label>🔊 VOICE CHANNEL</label>
+                            <div class="toggle-row">
+                                <span>Auto Join Voice Channel</span>
+                                <input type="checkbox" name="voiceEnabled" ${voice.enabled ? 'checked' : ''}>
+                            </div>
+                            <label>Voice Channel ID</label>
+                            <input type="text" name="voiceChannelId" value="${voice.channelId || ''}" placeholder="Voice Channel ID">
+                            <div class="input-hint">Jika aktif, bot otomatis join VC ini setelah login/restart. Command vjoin juga menyimpan VC terakhir ke field ini.</div>
+                        </div>
+
                         <div class="card">
                             <label>🐉 BOSS AUTOMATION</label>
                             <div class="toggle-row">
@@ -720,7 +786,7 @@ const uiComponents = {
                 </form>
             </div>
 
-            ${this.getLogRefreshScript()}
+            ${this.getLogRefreshScript().replace('__PROFILE_SUMMARIES__', this.safeScriptJson(profileSummaries))}
         </body>
         </html>
         `;
@@ -760,7 +826,11 @@ app.get('/api/profile', (req, res) => {
         response.on('data', (chunk) => { data += chunk; });
         response.on('end', () => {
             try {
-                res.json(JSON.parse(data));
+                const profileData = JSON.parse(data);
+                if (profileData.id && profileData.username) {
+                    profileManager.saveProfileMeta(profileData.id, profileData.username, profileData.global_name, profileData.avatar);
+                }
+                res.json(profileData);
             } catch (e) {
                 res.status(500).json({ error: 'Gagal membaca data dari Discord' });
             }
