@@ -392,9 +392,7 @@ const uiComponents = {
                 font-weight: normal; font-size: 13px; color: #b9bbbe;
             }
             .profile-box img { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--accent); }
-            .profile-preview { margin-top: 10px; padding: 10px 12px; background: rgba(88, 101, 242, 0.08); border: 1px solid rgba(88, 101, 242, 0.3); border-radius: 8px; color: #d7dcff; font-size: 13px; min-height: 44px; }
-            .profile-preview-content { display: flex; align-items: center; gap: 10px; }
-            .profile-preview img { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--accent); }
+            .profile-preview { margin-top: 10px; padding: 10px 12px; background: rgba(88, 101, 242, 0.08); border: 1px solid rgba(88, 101, 242, 0.3); border-radius: 8px; color: #d7dcff; font-size: 13px; }
             .profile-preview strong { color: white; }
             
             .tabs-wrapper { display: flex; background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 15px; overflow: hidden; }
@@ -504,54 +502,18 @@ const uiComponents = {
                 const profileSelect = document.getElementById('selectedProfile');
                 const profilePreview = document.getElementById('profilePreview');
 
-                function escapeHtml(value) {
-                    return String(value || '')
-                        .replace(/&/g, '&amp;')
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;')
-                        .replace(/"/g, '&quot;')
-                        .replace(/'/g, '&#39;');
-                }
-
-                function renderProfilePreview(summary, suffix = '') {
-                    if (!summary) {
-                        profilePreview.textContent = 'Pilih profil untuk melihat preview akun.';
-                        return;
-                    }
-
-                    const avatar = summary.avatarUrl
-                        ? '<img src="' + escapeHtml(summary.avatarUrl) + '" alt="Avatar">'
-                        : '<div style="width:32px;height:32px;border-radius:50%;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;">👤</div>';
-                    const username = summary.username ? '<div style="font-size:11px;color:#8e9297;">@' + escapeHtml(summary.username) + ' (' + escapeHtml(summary.id) + ')</div>' : '<div style="font-size:11px;color:#8e9297;">' + escapeHtml(summary.id) + '</div>';
-
-                    profilePreview.innerHTML = '<div class="profile-preview-content">' + avatar + '<div><strong>' + escapeHtml(summary.displayName) + '</strong>' + username + suffix + '</div></div>';
-                }
-
-                async function updateProfilePreview() {
+                function updateProfilePreview() {
                     if (!profileSelect || !profilePreview) return;
 
                     const selectedId = profileSelect.value;
                     const summary = profileSummaries[selectedId];
 
-                    if (!selectedId) {
-                        renderProfilePreview(null);
+                    if (!selectedId || !summary) {
+                        profilePreview.textContent = 'Pilih profil untuk melihat preview akun.';
                         return;
                     }
 
-                    renderProfilePreview(summary || { id: selectedId, displayName: 'Profil ' + selectedId, username: '', avatarUrl: '' }, '<div style="font-size:11px;color:#faa81a;">Memuat username/foto...</div>');
-
-                    try {
-                        const res = await fetch('/api/profile-preview/' + encodeURIComponent(selectedId), { cache: 'no-store' });
-                        const data = await res.json();
-                        if (!res.ok) throw new Error(data.error || 'Gagal memuat preview');
-                        profileSummaries[selectedId] = data;
-                        const statusSuffix = data.fetchError
-                            ? '<div style="font-size:11px;color:#ed4245;">Gagal fetch Discord: ' + escapeHtml(data.fetchError) + '</div>'
-                            : (!data.hasMeta ? '<div style="font-size:11px;color:#faa81a;">Metadata belum tersedia untuk profil ini.</div>' : '');
-                        renderProfilePreview(data, statusSuffix);
-                    } catch (err) {
-                        renderProfilePreview(summary || { id: selectedId, displayName: 'Profil ' + selectedId, username: '', avatarUrl: '' }, '<div style="font-size:11px;color:#ed4245;">Preview API gagal: ' + escapeHtml(err.message) + '</div>');
-                    }
+                    profilePreview.innerHTML = '<strong>Preview:</strong> ' + summary.previewName;
                 }
 
                 if (profileSelect) {
@@ -598,7 +560,9 @@ const uiComponents = {
         const profiles = profileManager.getSavedProfiles();
         const activeProfileId = profileManager.getUserId(config.token);
         const profileSummaries = profiles.reduce((acc, id) => {
-            acc[id] = profileManager.getProfileSummary(id);
+            const meta = profileManager.getProfileMeta(id);
+            const previewName = meta?.globalName || (meta?.username ? `@${meta.username}` : `Profil ${id}`);
+            acc[id] = { previewName: this.escapeHtml(previewName) };
             return acc;
         }, {});
 
@@ -907,12 +871,38 @@ console.log(`[DASHBOARD] Initial port check: PORT=${PORT}, initialConfig.port=${
 
 // --- ROUTES ---
 
-app.get('/api/profile', async (req, res) => {
-    try {
-        const config = configManager.get();
-        const token = config.token;
+app.get('/api/profile', (req, res) => {
+    const config = configManager.get();
+    const token = config.token;
+    
+    if (!token) return res.status(400).json({ error: 'Tidak ada token.' });
 
-        if (!token) return res.status(400).json({ error: 'Tidak ada token.' });
+    const options = {
+        hostname: 'discord.com',
+        path: '/api/v9/users/@me',
+        method: 'GET',
+        headers: {
+            'Authorization': token,
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+    };
+
+    const request = https.request(options, (response) => {
+        let data = '';
+        response.on('data', (chunk) => { data += chunk; });
+        response.on('end', () => {
+            try {
+                const profileData = JSON.parse(data);
+                if (profileData.id && profileData.username) {
+                    profileManager.saveProfileMeta(profileData.id, profileData.username, profileData.global_name, profileData.avatar);
+                }
+                res.json(profileData);
+            } catch (e) {
+                res.status(500).json({ error: 'Gagal membaca data dari Discord' });
+            }
+        });
+    });
 
         const profileData = await discordApiService.getCurrentUser(token);
         discordApiService.saveProfileMetaIfValid(profileData);
