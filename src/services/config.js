@@ -2,17 +2,24 @@ const fs = require('fs');
 const CONSTANTS = require('../constants');
 const { safeJsonStringify } = require('../utils');
 
+const ensureRuntimeShape = (config = {}) => {
+    config.settings = config.settings || {};
+    config.settings.voice = config.settings.voice || { enabled: false, channelId: '' };
+    return config;
+};
+
 module.exports = (state) => ({
     read() {
         try {
             const raw = fs.readFileSync('./config.json', 'utf8');
-            return JSON.parse(raw);
+            return ensureRuntimeShape(JSON.parse(raw));
         } catch (e) {
             return null;
         }
     },
 
     save() {
+        ensureRuntimeShape(state.config);
         fs.writeFileSync('./config.json', JSON.stringify(state.config, null, 2));
     },
 
@@ -53,6 +60,7 @@ module.exports = (state) => ({
 
         const tokenChanged = diskConfig.token !== state.activeToken;
         const channelsChanged = safeJsonStringify(state.config.channels) !== safeJsonStringify(diskConfig.channels);
+        const voiceChanged = safeJsonStringify(state.config.settings?.voice) !== safeJsonStringify(diskConfig.settings?.voice);
         
         const wasPaused = state.config.botStatus?.paused;
         const wasRunning = state.config.botStatus?.running;
@@ -63,6 +71,6 @@ module.exports = (state) => ({
 
         state.config = diskConfig;
 
-        return { tokenChanged, channelsChanged, statusChanged, wasPaused, wasRunning, nowPaused, nowRunning };
+        return { tokenChanged, channelsChanged, voiceChanged, statusChanged, wasPaused, wasRunning, nowPaused, nowRunning };
     }
 });
