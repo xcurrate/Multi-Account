@@ -34,17 +34,20 @@ const configPath = path.join(__dirname, CONSTANTS.CONFIG_FILE);
 
 // --- UTILITY FUNCTIONS ---
 const fileService = {
-    readJson(filePath) {
+    readJson(filePath, defaultValue = {}) {
         try {
+            if (!fs.existsSync(filePath)) return defaultValue;
             return JSON.parse(fs.readFileSync(filePath, 'utf8'));
         } catch (error) {
             console.error(`Error reading JSON from ${filePath}:`, error.message);
-            return {};
+            return defaultValue;
         }
     },
 
     writeJson(filePath, obj) {
         try {
+            const dir = path.dirname(filePath);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             fs.writeFileSync(filePath, JSON.stringify(obj, null, 2));
             return true;
         } catch (error) {
@@ -53,6 +56,18 @@ const fileService = {
         }
     }
 };
+
+const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const serializeForScript = (value) => JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
 
 // --- PROFILE MANAGER ---
 const profileManager = {
@@ -69,14 +84,20 @@ const profileManager = {
 
     getProfilePath(id) {
         const dir = path.join(__dirname, 'profiles');
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         return path.join(dir, `config_${id}.json`);
     },
 
     getMetaPath() {
         const dir = path.join(__dirname, 'profiles');
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         return path.join(dir, 'meta.json');
+    },
+
+    readMeta() {
+        const meta = fileService.readJson(this.getMetaPath(), { profiles: {} });
+        if (!meta.profiles || typeof meta.profiles !== 'object') meta.profiles = {};
+        return meta;
     },
 
     getSavedProfiles() {
@@ -89,8 +110,7 @@ const profileManager = {
 
     saveProfileMeta(id, username, globalName, avatar) {
         const metaPath = this.getMetaPath();
-        let meta = fileService.readJson(metaPath);
-        if (!meta.profiles) meta.profiles = {};
+        let meta = this.readMeta();
         
         meta.profiles[id] = {
             username,
@@ -102,8 +122,7 @@ const profileManager = {
     },
 
     getProfileMeta(id) {
-        const metaPath = this.getMetaPath();
-        const meta = fileService.readJson(metaPath);
+        const meta = this.readMeta();
         return meta.profiles && meta.profiles[id] ? meta.profiles[id] : null;
     },
 
@@ -312,6 +331,13 @@ const uiComponents = {
                 font-weight: normal; font-size: 13px; color: #b9bbbe;
             }
             .profile-box img { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--accent); }
+            .profile-preview {
+                display: none; align-items: center; gap: 8px; margin-top: 8px; padding: 10px;
+                background: rgba(88, 101, 242, 0.12); border: 1px solid rgba(88, 101, 242, 0.35);
+                border-radius: 8px; color: white; font-size: 13px;
+            }
+            .profile-preview.visible { display: flex; }
+            .profile-preview strong { color: var(--accent); }
             
             .tabs-wrapper { display: flex; background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 15px; overflow: hidden; }
             .tab-btn { flex: 1; padding: 12px; background: transparent; color: #8e9297; border: none; cursor: pointer; font-weight: 600; transition: all 0.2s; font-size: 14px; }
@@ -364,7 +390,8 @@ const uiComponents = {
         `;
     },
 
-    getLogRefreshScript() {
+    getLogRefreshScript(profileOptions = []) {
+        const profileOptionsJson = serializeForScript(profileOptions);
         return `
         <script>
             (function() {
@@ -415,6 +442,44 @@ const uiComponents = {
                     }
                 }
                 fetchProfile(); // Panggil saat halaman dimuat
+
+                const profileOptions = ${profileOptionsJson};
+                const profileSelect = document.getElementById('selectedProfile');
+                const profilePreview = document.getElementById('selectedProfilePreview');
+
+                function getProfilePreviewLabel(profile) {
+                    if (!profile) return '';
+                    if (profile.meta && profile.meta.username) return '@' + profile.meta.username;
+                    return 'Profil ' + profile.id;
+                }
+
+                function updateProfilePreview() {
+                    if (!profileSelect || !profilePreview) return;
+                    const selected = profileOptions.find(profile => profile.id === profileSelect.value);
+                    if (!selected) {
+                        profilePreview.classList.remove('visible');
+                        profilePreview.textContent = '';
+                        return;
+                    }
+
+                    const label = getProfilePreviewLabel(selected);
+                    profilePreview.innerHTML = '<span>👁️ Preview:</span> <strong>' + escapeHtml(label) + '</strong>' + (selected.isActive ? '<span>(Aktif)</span>' : '');
+                    profilePreview.classList.add('visible');
+                }
+
+                function escapeHtml(value) {
+                    return String(value || '')
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#39;');
+                }
+
+                if (profileSelect) {
+                    profileSelect.addEventListener('change', updateProfilePreview);
+                    updateProfilePreview();
+                }
             })();
             
             function switchTab(event, tabId) {
@@ -454,6 +519,12 @@ const uiComponents = {
 
         const profiles = profileManager.getSavedProfiles();
         const activeProfileId = profileManager.getUserId(config.token);
+        const profileOptions = profiles.map(id => ({
+            id,
+            meta: profileManager.getProfileMeta(id),
+            displayName: profileManager.getProfileDisplayName(id),
+            isActive: id === activeProfileId
+        }));
 
         return `
         <!DOCTYPE html>
@@ -499,10 +570,11 @@ const uiComponents = {
                             <div style="margin-bottom: 12px;">
                                 <div class="row">
                                     <div class="col">
-                                        <select name="selectedProfile" class="input-select">
+                                        <select name="selectedProfile" id="selectedProfile" class="input-select">
                                             <option value="">-- Pilih Profil Tersimpan --</option>
-                                            ${profiles.map(p => `<option value="${p}">${p === activeProfileId ? `✅ ${profileManager.getProfileDisplayName(p)} (Aktif)` : profileManager.getProfileDisplayName(p)}</option>`).join('')}
+                                            ${profileOptions.map(profile => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.isActive ? `✅ ${profile.displayName} (Aktif)` : profile.displayName)}</option>`).join('')}
                                         </select>
+                                        <div id="selectedProfilePreview" class="profile-preview" aria-live="polite"></div>
                                     </div>
                                     <div class="col" style="flex: 0.4;">
                                         <button type="submit" name="action" value="loadProfile" class="btn" style="background: var(--yellow); color: black;">📂 LOAD</button>
@@ -737,7 +809,7 @@ const uiComponents = {
                 </form>
             </div>
 
-            ${this.getLogRefreshScript()}
+            ${this.getLogRefreshScript(profileOptions)}
         </body>
         </html>
         `;
@@ -777,7 +849,16 @@ app.get('/api/profile', (req, res) => {
         response.on('data', (chunk) => { data += chunk; });
         response.on('end', () => {
             try {
-                res.json(JSON.parse(data));
+                const parsedData = JSON.parse(data);
+                if (parsedData && parsedData.id && parsedData.username) {
+                    profileManager.saveProfileMeta(
+                        parsedData.id,
+                        parsedData.username,
+                        parsedData.global_name,
+                        parsedData.avatar
+                    );
+                }
+                res.json(parsedData);
             } catch (e) {
                 res.status(500).json({ error: 'Gagal membaca data dari Discord' });
             }
