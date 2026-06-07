@@ -58,6 +58,7 @@ module.exports = (state) => ({
         const diskConfig = this.read();
         if (!diskConfig) return false;
 
+        const previousToken = state.activeToken;
         const tokenChanged = diskConfig.token !== state.activeToken;
         const channelsChanged = safeJsonStringify(state.config.channels) !== safeJsonStringify(diskConfig.channels);
         const voiceChanged = safeJsonStringify(state.config.settings?.voice) !== safeJsonStringify(diskConfig.settings?.voice);
@@ -71,6 +72,6 @@ module.exports = (state) => ({
 
         state.config = diskConfig;
 
-        return { tokenChanged, channelsChanged, voiceChanged, statusChanged, wasPaused, wasRunning, nowPaused, nowRunning };
+        return { tokenChanged, previousToken, channelsChanged, voiceChanged, statusChanged, wasPaused, wasRunning, nowPaused, nowRunning };
     }
 });

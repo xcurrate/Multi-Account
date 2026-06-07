@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const state = require('./src/state');
+const runtimeStatsService = require('./src/services/stats');
 
 // --- CONSTANTS & CONFIGURATION ---
 const CONSTANTS = {
@@ -326,10 +327,14 @@ const statsService = {
     },
 
     getSnapshot(config) {
-        const runtimeStats = state.stats || {};
-        const commandStats = runtimeStats.commands || { total: 0, byType: {}, recent: [], last: null };
-        const captchaStats = runtimeStats.captcha || { detected: 0, solved: 0, lastDetectedAt: null, lastSolvedAt: null };
-        const uptimeMs = Date.now() - (state.startedAt || Date.now());
+        const accountStats = runtimeStatsService.ensureAccountStats(state, config.token);
+        const snapshotAccountId = runtimeStatsService.getAccountIdFromToken(config.token);
+        const activeAccountId = runtimeStatsService.getAccountIdFromToken(state.activeToken || state.config?.token);
+        const commandStats = accountStats.commands || { total: 0, byType: {}, recent: [], last: null };
+        const captchaStats = accountStats.captcha || { detected: 0, solved: 0, lastDetectedAt: null, lastSolvedAt: null };
+        const uptimeMs = runtimeStatsService.getUptimeMs(state, config.token, {
+            sync: snapshotAccountId === activeAccountId
+        });
         const { statusText, statusClass } = configManager.computeStatus(config);
 
         return {
@@ -360,7 +365,7 @@ const statsService = {
             uptime: {
                 ms: uptimeMs,
                 text: this.formatDuration(uptimeMs),
-                startedAt: this.formatTime(state.startedAt)
+                startedAt: this.formatTime(accountStats.uptime?.lastStartedAt)
             }
         };
     }

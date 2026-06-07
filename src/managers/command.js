@@ -1,23 +1,7 @@
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
 const { sleep, randomInt } = require('../utils');
-
-const recordCommandStat = (state, cmd, type) => {
-    state.stats = state.stats || {};
-    state.stats.commands = state.stats.commands || { total: 0, byType: {}, recent: [], last: null };
-
-    const safeType = type || 'Command';
-    const item = { cmd, type: safeType, at: Date.now(), channelId: state.activeChannelId || null };
-
-    state.stats.commands.total += 1;
-    state.stats.commands.byType[safeType] = (state.stats.commands.byType[safeType] || 0) + 1;
-    state.stats.commands.last = item;
-    state.stats.commands.recent.push(item);
-
-    while (state.stats.commands.recent.length > 20) {
-        state.stats.commands.recent.shift();
-    }
-};
+const statsService = require('../services/stats');
 
 module.exports = (state, channelManager, emergencyHandler) => ({
     async send(cmd, type = '') {
@@ -43,7 +27,7 @@ module.exports = (state, channelManager, emergencyHandler) => ({
 
         try {
             await channel.send(cmd);
-            recordCommandStat(state, cmd, type);
+            statsService.recordCommand(state, cmd, type);
             log.info(`📨 Sent: ${cmd} [${type}]`);
 
             // TIMEOUT HANYA UNTUK BATTLE DAN HUNT

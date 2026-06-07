@@ -1,5 +1,6 @@
 const { Client } = require('discord.js-selfbot-v13');
 const log = require('../../logger');
+const statsService = require('../services/stats');
 
 module.exports = (state, configManager, channelManager, messageHandler, telegramService, huntbotManager) => ({
     initialize() {
@@ -21,6 +22,7 @@ module.exports = (state, configManager, channelManager, messageHandler, telegram
             state.config.botStatus = state.config.botStatus || {};
             state.config.botStatus.paused = true;
             state.config.botStatus.running = false;
+            statsService.syncBotUptime(state);
             configManager.save();
 
             // Inisialisasi HuntBot dan kirim command awal

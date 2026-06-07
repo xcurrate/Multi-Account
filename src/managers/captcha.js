@@ -4,27 +4,14 @@ const { removeInvisibleChars } = require('../utils');
 
 // ⚠️ Sesuaikan path import ini tergantung di mana Anda meletakkan folder 'service'
 const NopechaSolver = require('../services/nopechaSolver');
+const statsService = require('../services/stats');
 
 module.exports = (state, configManager, loopManager, telegramService, channelManager, macrodroidService) => {
     const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-    const ensureCaptchaStats = () => {
-        state.stats = state.stats || {};
-        state.stats.captcha = state.stats.captcha || { detected: 0, solved: 0, lastDetectedAt: null, lastSolvedAt: null };
-        return state.stats.captcha;
-    };
+    const recordCaptchaDetected = () => statsService.recordCaptchaDetected(state);
 
-    const recordCaptchaDetected = () => {
-        const captchaStats = ensureCaptchaStats();
-        captchaStats.detected += 1;
-        captchaStats.lastDetectedAt = Date.now();
-    };
-
-    const recordCaptchaSolved = () => {
-        const captchaStats = ensureCaptchaStats();
-        captchaStats.solved += 1;
-        captchaStats.lastSolvedAt = Date.now();
-    };
+    const recordCaptchaSolved = () => statsService.recordCaptchaSolved(state);
 
     const shouldStopSolving = (runId) => !state.hasActiveCaptcha || state.captchaSolveRunId !== runId;
     const abortActiveSolver = () => {
@@ -109,6 +96,7 @@ module.exports = (state, configManager, loopManager, telegramService, channelMan
             state.config.botStatus.paused = true;
             state.config.botStatus.running = false;
             state.hasActiveCaptcha = true;
+            statsService.syncBotUptime(state);
             state.captchaSolveRunId = (state.captchaSolveRunId || 0) + 1;
             const solveRunId = state.captchaSolveRunId;
             abortActiveSolver();
@@ -245,6 +233,7 @@ module.exports = (state, configManager, loopManager, telegramService, channelMan
             state.config.botStatus.paused = false;
             state.config.botStatus.running = true;
             state.hasActiveCaptcha = false;
+            statsService.syncBotUptime(state);
             if (wasActiveCaptcha) recordCaptchaSolved();
             configManager.save();
             loopManager.startAll();

@@ -1,10 +1,12 @@
 const log = require('../../logger');
+const statsService = require('../services/stats');
 
 module.exports = (state, configManager, loopManager, channelManager, telegramService) => ({
     pause(reason) {
         log.error(`⛔ ${reason} -> PAUSE.`);
         state.config.botStatus.paused = true;
         state.config.botStatus.running = false;
+        statsService.syncBotUptime(state);
         configManager.save();
         
         // ✅ Null check
