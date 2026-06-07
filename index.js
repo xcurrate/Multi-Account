@@ -14,13 +14,11 @@ const CONSTANTS = require('./src/constants');
 const createTelegramService = require('./src/services/telegram');
 const createMacrodroidService = require('./src/services/macrodroidService');
 const createConfigManager = require('./src/services/config');
-const createTopggAutoVoteService = require('./src/services/topggAutoVote');
 
 // Initialize services dengan state
 const telegramService = createTelegramService(state);
 const macrodroidService = createMacrodroidService(state);
 const configManager = createConfigManager(state);
-const topggAutoVoteService = createTopggAutoVoteService(configManager);
 // Load managers (dengan dependency injection)
 const createChannelManager = require('./src/managers/channel');
 const createBossManager = require('./src/managers/boss');
@@ -103,9 +101,6 @@ const initialize = () => {
 
     // Start Daily Reset Checker
     setInterval(() => dailyResetManager.checkAndReset(), CONSTANTS.RESET_CHECK_INTERVAL_MS);
-
-    // Start Auto Vote Top.gg if enabled
-    topggAutoVoteService.start();
 
     // Start Polling System
     pollingSystem.start();

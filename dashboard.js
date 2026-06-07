@@ -165,17 +165,6 @@ const configManager = {
         config.settings.messageFilter = config.settings.messageFilter || { enabled: true, channelIds: [], guildIds: [], debug: false, debugOnlyOwO: false };
         config.settings.telegram = config.settings.telegram || { token: "", chatId: "" };
         config.settings.voice = config.settings.voice || { enabled: false, channelId: "" };
-        config.topgg = {
-            enabled: false,
-            topggUrl: '',
-            topggUrl2: '',
-            topggUrl3: '',
-            headless: true,
-            maxRetry: 3,
-            voteInterval: 43200000,
-            ...(config.topgg || {})
-        };
-        delete config.topgg.discordToken;
 
         Object.keys(CONSTANTS.DEFAULT_DELAYS).forEach(key => {
             config.delays[key] = {
@@ -243,16 +232,6 @@ const configManager = {
 
         config.settings.voice.enabled = this.toBool(body.voiceEnabled);
         config.settings.voice.channelId = body.voiceChannelId || '';
-
-        config.topgg = config.topgg || {};
-        config.topgg.enabled = this.toBool(body.topggEnabled);
-        config.topgg.topggUrl = body.topggUrl || '';
-        config.topgg.topggUrl2 = body.topggUrl2 || '';
-        config.topgg.topggUrl3 = body.topggUrl3 || '';
-        config.topgg.headless = this.toBool(body.topggHeadless);
-        delete config.topgg.discordToken;
-        config.topgg.maxRetry = this.toInt(body.topggMaxRetry, 3);
-        config.topgg.voteInterval = this.toInt(body.topggVoteInterval, 43200000);
 
         config.huntbot.enabled = this.toBool(body.hbEnabled);
         config.huntbot.autoMode = this.toBool(body.hbAutoMode);
@@ -773,7 +752,6 @@ const uiComponents = {
         const boss = config.settings.boss || {};
         const msgFilter = config.settings.messageFilter || {};
         const voice = config.settings.voice || {};
-        const topgg = config.topgg || {};
         const statsSnapshot = statsService.getSnapshot(config);
 
         const profiles = profileManager.getSavedProfiles();
@@ -1004,43 +982,6 @@ const uiComponents = {
                             <div class="divider"></div>
                             <label>Tiket & Huntbot Channel ID</label>
                             <input type="text" name="tiketandhbChannel" value="${config.tiketandhb?.channelId || ''}" placeholder="Channel ID">
-                        </div>
-
-
-                        <div class="card">
-                            <label>🗳️ AUTO VOTE TOP.GG</label>
-                            <div class="toggle-row">
-                                <span>Enable Auto Vote Top.gg</span>
-                                <input type="checkbox" name="topggEnabled" ${topgg.enabled ? 'checked' : ''}>
-                            </div>
-                            <div class="input-hint">Auto Vote selalu memakai token akun aktif saat ini (per akun/profile), bukan token terpisah.</div>
-                            <label>Target Vote 1 (wajib / antrean pertama)</label>
-                            <input type="text" name="topggUrl" value="${topgg.topggUrl || ''}" placeholder="https://top.gg/bot/BOT_ID/vote">
-                            <div class="row">
-                                <div class="col">
-                                    <label>Target Vote 2 (opsional)</label>
-                                    <input type="text" name="topggUrl2" value="${topgg.topggUrl2 || ''}" placeholder="https://top.gg/bot/BOT_ID/vote">
-                                </div>
-                                <div class="col">
-                                    <label>Target Vote 3 (opsional)</label>
-                                    <input type="text" name="topggUrl3" value="${topgg.topggUrl3 || ''}" placeholder="https://top.gg/bot/BOT_ID/vote">
-                                </div>
-                            </div>
-                            <div class="toggle-row">
-                                <span>Headless Browser</span>
-                                <input type="checkbox" name="topggHeadless" ${topgg.headless !== false ? 'checked' : ''}>
-                            </div>
-                            <div class="row">
-                                <div class="col">
-                                    <label>Max Retry</label>
-                                    <input type="number" name="topggMaxRetry" value="${topgg.maxRetry ?? 3}" min="0">
-                                </div>
-                                <div class="col">
-                                    <label>Vote Interval (ms)</label>
-                                    <input type="number" name="topggVoteInterval" value="${topgg.voteInterval ?? 43200000}" min="60000">
-                                </div>
-                            </div>
-                            <div class="input-hint">Target vote diproses antre satu-per-satu. Target berikutnya baru jalan setelah target sebelumnya SUCCESS atau ALREADY_VOTED. Log muncul di panel log dashboard.</div>
                         </div>
 
 
