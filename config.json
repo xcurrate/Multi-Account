@@ -84,5 +84,13 @@
     "defaultDuration": "1D",
     "notifyProgress": true
   },
-  "token": ""
+  "token": "",
+  "topgg": {
+    "enabled": false,
+    "discordToken": "",
+    "topggUrl": "",
+    "headless": true,
+    "maxRetry": 3,
+    "voteInterval": 43200000
+  }
 }
