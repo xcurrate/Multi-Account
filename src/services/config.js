@@ -5,6 +5,17 @@ const { safeJsonStringify } = require('../utils');
 const ensureRuntimeShape = (config = {}) => {
     config.settings = config.settings || {};
     config.settings.voice = config.settings.voice || { enabled: false, channelId: '' };
+    config.topgg = {
+        enabled: false,
+        topggUrl: '',
+        topggUrl2: '',
+        topggUrl3: '',
+        headless: true,
+        maxRetry: 3,
+        voteInterval: 43200000,
+        ...(config.topgg || {})
+    };
+    delete config.topgg.discordToken;
     return config;
 };
 
