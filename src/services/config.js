@@ -5,15 +5,6 @@ const { safeJsonStringify } = require('../utils');
 const ensureRuntimeShape = (config = {}) => {
     config.settings = config.settings || {};
     config.settings.voice = config.settings.voice || { enabled: false, channelId: '' };
-    config.topgg = {
-        enabled: false,
-        discordToken: '',
-        topggUrl: '',
-        headless: true,
-        maxRetry: 3,
-        voteInterval: 43200000,
-        ...(config.topgg || {})
-    };
     return config;
 };
 
