@@ -1,9 +1,6 @@
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
-
-
-
-
+const statsService = require('../services/stats');
 
 module.exports = (state, configManager, bossManager, captchaHandler, loopManager, channelManager, telegramService, macrodroidService, huntbotManager, commandSender, voiceManager) => ({
     async handle(msg) {
@@ -39,6 +36,7 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
             state.activeChannelId = msg.channel.id;
             state.config.botStatus.paused = false;
             state.config.botStatus.running = true;
+            statsService.syncBotUptime(state);
             configManager.save();
             log.success(`▶️ Start via Discord control.`);
             loopManager.startAll();
@@ -49,6 +47,7 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
         if (text === pauseCmd) {
             state.config.botStatus.paused = true;
             state.config.botStatus.running = false;
+            statsService.syncBotUptime(state);
             configManager.save();
             log.warn('⏸️ Pause via Discord control.');
             loopManager.stopAll();
@@ -71,6 +70,7 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
             state.activeChannelId = msg.channel.id;
             state.config.botStatus.paused = false;
             state.config.botStatus.running = true;
+            statsService.syncBotUptime(state);
             configManager.save();
             log.success(`▶️ Start via Discord control.`);
             loopManager.startAll();
@@ -81,6 +81,7 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
         if (text === pauseCmd) {
             state.config.botStatus.paused = true;
             state.config.botStatus.running = false;
+            statsService.syncBotUptime(state);
             configManager.save();
             log.warn('⏸️ Pause via Discord control.');
             loopManager.stopAll();

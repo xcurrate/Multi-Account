@@ -1,5 +1,6 @@
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
+const statsService = require('../services/stats');
 
 module.exports = (state, configManager, clientManager, channelManager, loopManager, telegramService, voiceManager) => ({
     start() {
@@ -7,6 +8,7 @@ module.exports = (state, configManager, clientManager, channelManager, loopManag
             const result = configManager.updateFromDisk();
 
             if (result.tokenChanged) {
+                statsService.syncBotUptime(state, { token: result.previousToken, forceActive: false });
                 log.warn('⚠️ Token berubah! Login ulang...');
                 state.activeToken = state.config.token;
                 clientManager.initialize();
@@ -41,6 +43,7 @@ module.exports = (state, configManager, clientManager, channelManager, loopManag
             log.success('▶️ Bot di-START dari dashboard');
             state.config.botStatus.paused = false;
             state.config.botStatus.running = true;
+            statsService.syncBotUptime(state);
             
             if (!state.client?.isReady()) {
                 clientManager.initialize();
@@ -56,6 +59,7 @@ module.exports = (state, configManager, clientManager, channelManager, loopManag
             log.warn('⏸️ Bot di-PAUSE dari dashboard');
             state.config.botStatus.paused = true;
             state.config.botStatus.running = false;
+            statsService.syncBotUptime(state);
             
             loopManager.stopAll();
             channelManager.stopRotation();

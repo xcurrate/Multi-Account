@@ -1,5 +1,6 @@
 const { Client } = require('discord.js-selfbot-v13');
 const log = require('../../logger');
+const statsService = require('../services/stats');
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -48,6 +49,7 @@ module.exports = (state, configManager, channelManager, messageHandler, telegram
             state.config.botStatus = state.config.botStatus || {};
             state.config.botStatus.paused = true;
             state.config.botStatus.running = false;
+            statsService.syncBotUptime(state);
             configManager.save();
 
             if (voiceManager) {
