@@ -1,16 +1,16 @@
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
 const { removeInvisibleChars } = require('../utils');
-
-// ⚠️ Sesuaikan path import ini tergantung di mana Anda meletakkan folder 'service'
-const NopechaSolver = require('../services/nopechaSolver');
 const statsService = require('../services/stats');
+
+// === Import CaptchaAsu System ===
+const CaptchaAsu = require('../services/CaptchaAsu');
+const NopechaSolver = require('../services/solvers/NopechaSolver');
 
 module.exports = (state, configManager, loopManager, telegramService, channelManager, macrodroidService) => {
     const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     const recordCaptchaDetected = () => statsService.recordCaptchaDetected(state);
-
     const recordCaptchaSolved = () => statsService.recordCaptchaSolved(state);
 
     const shouldStopSolving = (runId) => !state.hasActiveCaptcha || state.captchaSolveRunId !== runId;
@@ -19,6 +19,39 @@ module.exports = (state, configManager, loopManager, telegramService, channelMan
             state.captchaSolverAbortController.abort();
         }
         state.captchaSolverAbortController = null;
+    };
+
+    // === Inisialisasi CaptchaAsu ===
+    let captchaAsu = null;
+
+    const initCaptchaAsu = () => {
+        if (captchaAsu) return captchaAsu;
+
+        const captchaConfig = state.config.captcha || {};
+        const apiKeys = captchaConfig.apiKeys || {};
+
+        captchaAsu = new CaptchaAsu({
+            maxTotalTimeMs: captchaConfig.maxTotalTimeMs || 600000,
+            retryPerSolver: captchaConfig.retryPerSolver || 2,
+            timeoutPerAttemptMs: captchaConfig.timeoutPerAttemptMs || 30000
+        });
+
+        // Register solver yang tersedia
+        if (apiKeys.NopechaSolver) {
+            captchaAsu.registerSolver(new NopechaSolver(apiKeys.NopechaSolver));
+        }
+        // Nanti bisa ditambahkan solver lain di sini
+
+        // Set urutan solver
+        const primary = captchaConfig.primarySolver || 'NopechaSolver';
+        const fallbacks = captchaConfig.fallbackSolvers || [];
+        try {
+            captchaAsu.setSolverOrder(primary, fallbacks);
+        } catch (e) {
+            log.warn(`[Captcha] Gagal set solver order: ${e.message}`);
+        }
+
+        return captchaAsu;
     };
 
     const captchaHandler = {
@@ -30,7 +63,6 @@ module.exports = (state, configManager, loopManager, telegramService, channelMan
                    /\b[1-5]\/5\b/.test(lowerContent);
         },
 
-        // Auto-Login & Submit Sesi ke OwO
         async submitKeOwO(solvedToken) {
             log.info("Memulai proses auto-login (OAuth2) ke web OwO...");
             const discordToken = state.activeToken;
@@ -109,74 +141,27 @@ module.exports = (state, configManager, loopManager, telegramService, channelMan
 
             if (!state.lastCaptchaAlertTime || (now - state.lastCaptchaAlertTime > cooldownMs)) {
 
-                // 1. Kirim notifikasi awal Captcha ke Telegram
                 telegramService.send(`🚨 <b>CAPTCHA DETEKSI!</b>\nBot: ${state.client.user.username}`);
                 state.lastCaptchaAlertTime = now;
 
-                // 2. Cek apakah autosolver ON atau OFF
-                if (state.config.autosolver) { // Asumsi bernilai boolean (true/false)
-
+                if (state.config.autosolver) {
                     telegramService.send(`Bypass Gaib berjalan... 🤖⚡`);
 
-                    const NOPECHA_API_KEY = process.env.NOPECHA_API_KEY || "zze3wv8h4lhzv403";
-                    const SITE_KEY = "a6a1d5ce-612d-472d-8e37-7601408fbc09";
-                    const TARGET_URL = "https://owobot.com/captcha";
-
                     try {
-                        // Inisialisasi Service Nopecha
-                        const nopecha = new NopechaSolver(NOPECHA_API_KEY);
+                        const asu = initCaptchaAsu();
 
-                        // Cek dan tampilkan Saldo
-                        const sisaCredit = await nopecha.getBalance();
-                        log.info(`💰 Sisa Kuota NopeCha: ${sisaCredit} request`);
-
-                        let solvedToken = null;
-                        const startTime = Date.now();
-                        const TEN_MINUTES = 10 * 60 * 1000;
-                        let jobAttempts = 0;
-
-                        // 🔁 Loop Luar: Ulangi terus selama belum 10 menit
-                        while (Date.now() - startTime < TEN_MINUTES && !shouldStopSolving(solveRunId)) {
-                            jobAttempts++;
-                            try {
-                                if (jobAttempts > 1) {
-                                    log.info(`🔄 Membuat job ulang ke NopeCha (Percobaan ke-${jobAttempts})`);
-                                }
-                                solvedToken = await nopecha.solve(SITE_KEY, TARGET_URL, {
-                                    signal: state.captchaSolverAbortController?.signal
-                                });
-
-                                // Jika dapat token, keluar dari loop
-                                if (solvedToken || shouldStopSolving(solveRunId)) break;
-                            } catch (err) {
-                                log.warn(`⚠️ NopeCha Gagal: ${err.message}`);
-
-                                // Cek jika waktu masih ada sebelum mencoba lagi
-                                if (err.name === 'AbortError' || shouldStopSolving(solveRunId)) {
-                                    log.info("🛑 NopeCha dihentikan karena CAPTCHA sudah selesai/verifikasi manual.");
-                                    break;
-                                }
-
-                                if (Date.now() - startTime < TEN_MINUTES) {
-                                    log.info("Tunggu 5 detik sebelum membuat tugas baru...");
-                                    await wait(5000);
-                                }
-                            }
+                        if (!asu || asu.solvers.length === 0) {
+                            throw new Error('Tidak ada solver yang terdaftar atau API key kosong');
                         }
 
-                        if (shouldStopSolving(solveRunId)) {
-                            log.info("🛑 Solver otomatis berhenti: CAPTCHA sudah tidak aktif.");
-                            return;
-                        }
+                        const SITE_KEY = "a6a1d5ce-612d-472d-8e37-7601408fbc09";
+                        const TARGET_URL = "https://owobot.com/captcha";
 
-                        // Jika setelah 10 menit keluar loop tapi token masih kosong
-                        if (!solvedToken) {
-                            throw new Error("Waktu 10 Menit habis. Gagal mendapatkan solusi dari NopeCha.");
-                        }
+                        const solvedToken = await asu.solve(SITE_KEY, TARGET_URL, {
+                            signal: state.captchaSolverAbortController?.signal
+                        });
 
-                        log.success("✅ Captcha sukses dipecahkan AI!");
-                        log.info(`💰 Sisa Kuota NopeCha: ${sisaCredit} request`);
-                        // Eksekusi fungsi Auto-Login dan Submit ke OwO
+                        log.success("✅ Captcha sukses dipecahkan oleh CaptchaAsu!");
                         await this.submitKeOwO(solvedToken);
                         await this.resume();
 
@@ -184,8 +169,8 @@ module.exports = (state, configManager, loopManager, telegramService, channelMan
                         if (error.name === 'AbortError' || shouldStopSolving(solveRunId)) {
                             log.info("🛑 Bypass otomatis dibatalkan karena CAPTCHA selesai manual.");
                         } else {
-                            log.error(`❌ Bypass Full-Auto Gagal Total: ${error.message}`);
-                            telegramService.send(`❌ <b>Bypass Gagal (Atau Timeout)!</b>\nLog: ${error.message}\nMenunggu intervensi Manual di HP...`);
+                            log.error(`❌ CaptchaAsu Gagal: ${error.message}`);
+                            telegramService.send(`❌ <b>Bypass Gagal!</b>\n${error.message}`);
 
                             if (macrodroidService) {
                                 await macrodroidService.trigger("kena_captcha");
@@ -199,15 +184,12 @@ module.exports = (state, configManager, loopManager, telegramService, channelMan
                     }
 
                 } else {
-                    // JIKA AUTOSOLVER OFF (SKIP NOPECHA)
-                    log.info("⏸️ Autosolver dimatikan (OFF). Melewati proses pemecahan Captcha otomatis.");
-                    telegramService.send(`ℹ️ <b>Autosolver OFF!</b>\nBypass dibatalkan. Silakan selesaikan Captcha secara manual.`);
+                    log.info("⏸️ Autosolver OFF. Silakan selesaikan Captcha secara manual.");
+                    telegramService.send(`ℹ️ <b>Autosolver OFF!</b>\nSilakan selesaikan Captcha secara manual.`);
 
-                    // Tetap panggil Macrodroid jika ada, karena butuh intervensi manual
                     if (macrodroidService) {
                         await macrodroidService.trigger("kena_captcha");
                     }
-
                     this.isHandlingProcess = false;
                 }
 
@@ -216,7 +198,6 @@ module.exports = (state, configManager, loopManager, telegramService, channelMan
                 this.isHandlingProcess = false;
             }
         },
-
 
         async resume() {
             const wasActiveCaptcha = !!state.hasActiveCaptcha;
