@@ -70,11 +70,21 @@ const serializeForScript = (value) => JSON.stringify(value)
 const profileManager = {
     getUserId(token) {
         if (!token || typeof token !== 'string') return 'default';
+
         try {
-            const base64Id = token.split('.')[0];
-            const decodedId = Buffer.from(base64Id, 'utf8');
-            return /^\d+$/.test(decodedId) ? decodedId : 'default';
-        } catch {
+            const parts = token.split('.');
+            if (parts.length < 2) return 'default';
+
+            const base64Id = parts[0];
+            const padded = base64Id + '='.repeat((4 - base64Id.length % 4) % 4);
+            const decodedId = Buffer.from(padded, 'base64').toString('utf8');
+
+            if (/^\d{17,20}$/.test(decodedId)) {
+                return decodedId;
+            }
+            return 'default';
+        } catch (err) {
+            console.error('[PROFILE] Gagal parse token:', err.message);
             return 'default';
         }
     },
@@ -100,7 +110,7 @@ const profileManager = {
     getSavedProfiles() {
         const dir = path.join(__dirname, 'profiles');
         if (!fs.existsSync(dir)) return [];
-        return fs.readFileSync(dir)
+        return fs.readdirSync(dir)
             .filter(f => f.startsWith('config_') && f.endsWith('.json'))
             .map(f => f.replace('config_', '').replace('.json', ''));
     },
@@ -376,7 +386,7 @@ const statsService = {
             commands: {
                 total: commandStats.total || 0,
                 byType: commandStats.byType || {},
-                recent: Array.isArray(commandStats.recent) ? config.commands.recent : [],
+                recent: Array.isArray(commandStats.recent) ? commandStats.recent : [],
                 last: commandStats.last || null
             },
             captcha: {
