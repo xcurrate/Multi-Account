@@ -1,23 +1,32 @@
-getUserId(token) {
-        if (!token || typeof token !== 'string') return 'default';
-        
-        try {
-            const parts = token.split('.');
-            if (parts.length < 2) return 'default';
-
-            const base64Id = parts[0];
-            // Add padding if needed for base64 decoding
-            const padded = base64Id + '='.repeat((4 - base64Id.length % 4) % 4);
-            const decodedId = Buffer.from(padded, 'base64').toString('utf8');
-
-            // Discord user IDs are numeric snowflakes (usually 17-20 digits)
-            if (/^\d{17,20}$/.test(decodedId)) {
-                return decodedId;
+if (body.action === 'newProfile') {
+            const newToken = body.newToken?.trim();
+            if (!newToken) {
+                return res.send(uiComponents.getSavedResponse());
             }
+
+            const targetId = profileManager.getUserId(newToken);
             
-            return 'default';
-        } catch (err) {
-            console.error('[PROFILE] Gagal parse token ID:', err.message);
-            return 'default';
+            if (targetId === 'default') {
+                console.error('[PROFILE] Gagal membuat profil baru: Token tidak valid atau bukan user token.');
+                // Tetap simpan token baru ke config utama meskipun ID default
+                let currentConfig = configManager.ensureShape(configManager.get());
+                currentConfig.token = newToken;
+                configManager.save(currentConfig);
+                return res.send(uiComponents.getSavedResponse());
+            }
+
+            const profilePath = profileManager.getProfilePath(targetId);
+            
+            // Buat config baru berdasarkan shape
+            let newConfig = configManager.ensureShape({});
+            newConfig.token = newToken;
+
+            // Simpan ke file profil terpisah
+            fileService.writeJson(profilePath, newConfig);
+            
+            // Jadikan aktif di config utama
+            configManager.save(newConfig);
+
+            console.log(`[PROFILE] Akun baru berhasil dibuat sebagai profil mandiri: ${targetId}`);
+            return res.send(uiComponents.getSavedResponse());
         }
-    },
