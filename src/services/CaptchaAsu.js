@@ -1,124 +1,135 @@
 const log = require('../../logger');
-const NopechaSolver = require('./solvers/NopechaSolver');
 
 /**
- * CaptchaAsu - Orchestrator untuk multi-solver captcha (Sequential Fallback)
- * Nama class sesuai permintaan user
+ * CaptchaAsu - Multi Solver Orchestrator dengan Sequential Fallback
+ * Versi lengkap dengan dukungan multiple fallback
  */
 class CaptchaAsu {
     constructor(config = {}) {
-        this.solvers = [];           // Daftar solver yang tersedia
-        this.primarySolver = null;   // Solver utama
-        this.fallbackSolvers = [];   // Solver cadangan (sequential)
+        this.solvers = new Map(); // name -> solver instance
+        this.primarySolverName = null;
+        this.fallbackSolverNames = [];
 
-        this.maxTotalTimeMs = config.maxTotalTimeMs || 10 * 60 * 1000; // 10 menit
+        this.maxTotalTimeMs = config.maxTotalTimeMs || 10 * 60 * 1000;
         this.retryPerSolver = config.retryPerSolver || 2;
         this.timeoutPerAttemptMs = config.timeoutPerAttemptMs || 30000;
 
         this.stats = {
             totalAttempts: 0,
             success: 0,
-            failed: 0
+            failed: 0,
+            bySolver: {}
         };
     }
 
-    /**
-     * Register solver
-     * @param {BaseSolver} solverInstance
-     */
     registerSolver(solverInstance) {
         if (!solverInstance || typeof solverInstance.solve !== 'function') {
-            throw new Error('Solver harus meng-extend BaseSolver');
+            throw new Error('Solver harus memiliki method solve()');
         }
-        this.solvers.push(solverInstance);
-        log.info(`[CaptchaAsu] Solver registered: ${solverInstance.getName()}`);
+        const name = solverInstance.getName();
+        this.solvers.set(name, solverInstance);
+        this.stats.bySolver[name] = { success: 0, failed: 0 };
+        log.info(`[CaptchaAsu] Solver registered: ${name}`);
     }
 
-    /**
-     * Set primary solver + fallback solvers
-     * @param {string} primaryName - Nama solver utama
-     * @param {string[]} fallbackNames - Array nama solver cadangan
-     */
     setSolverOrder(primaryName, fallbackNames = []) {
-        this.primarySolver = this.solvers.find(s => s.getName() === primaryName);
-        this.fallbackSolvers = fallbackNames
-            .map(name => this.solvers.find(s => s.getName() === name))
-            .filter(Boolean);
-
-        if (!this.primarySolver) {
-            throw new Error(`Primary solver "${primaryName}" tidak ditemukan`);
+        if (!this.solvers.has(primaryName)) {
+            throw new Error(`Primary solver "${primaryName}" belum diregister`);
         }
 
-        log.info(`[CaptchaAsu] Primary: ${primaryName} | Fallback: ${fallbackNames.join(', ') || 'None'}`);
+        this.primarySolverName = primaryName;
+        this.fallbackSolverNames = fallbackNames.filter(name => this.solvers.has(name));
+
+        log.info(`[CaptchaAsu] Primary: ${primaryName}`);
+        if (this.fallbackSolverNames.length > 0) {
+            log.info(`[CaptchaAsu] Fallbacks: ${this.fallbackSolverNames.join(' → ')}`);
+        }
     }
 
-    /**
-     * Solve captcha dengan sequential fallback + retry
-     */
     async solve(sitekey, url, options = {}) {
         const startTime = Date.now();
-        const allSolvers = [this.primarySolver, ...this.fallbackSolvers].filter(Boolean);
-
-        if (allSolvers.length === 0) {
-            throw new Error('Tidak ada solver yang terdaftar di CaptchaAsu');
-        }
-
         this.stats.totalAttempts++;
 
-        for (const solver of allSolvers) {
-            const solverStart = Date.now();
+        const solverOrder = [this.primarySolverName, ...this.fallbackSolverNames]
+            .filter(Boolean)
+            .filter((name, index, arr) => arr.indexOf(name) === index); // unique
+
+        if (solverOrder.length === 0) {
+            throw new Error('Tidak ada solver yang terdaftar');
+        }
+
+        for (const solverName of solverOrder) {
+            const solver = this.solvers.get(solverName);
+            if (!solver) continue;
+
+            const solverStartTime = Date.now();
 
             for (let attempt = 1; attempt <= this.retryPerSolver; attempt++) {
-                try {
-                    // Cek apakah sudah melebihi total time
-                    if (Date.now() - startTime > this.maxTotalTimeMs) {
-                        throw new Error('Total solve time exceeded 10 minutes');
-                    }
+                // Cek total time
+                if (Date.now() - startTime > this.maxTotalTimeMs) {
+                    throw new Error('Total solve time exceeded maximum limit (10 minutes)');
+                }
 
-                    log.info(`[CaptchaAsu] Mencoba ${solver.getName()} (attempt ${attempt}/${this.retryPerSolver})`);
+                try {
+                    log.info(`[CaptchaAsu] Mencoba ${solverName} (attempt ${attempt}/${this.retryPerSolver})`);
 
                     const token = await Promise.race([
                         solver.solve(sitekey, url, options),
-                        this._timeout(this.timeoutPerAttemptMs, solver.getName())
+                        this._createTimeout(this.timeoutPerAttemptMs, solverName)
                     ]);
 
-                    const duration = ((Date.now() - solverStart) / 1000).toFixed(1);
-                    log.success(`[CaptchaAsu] Berhasil dengan ${solver.getName()} dalam ${duration}s`);
+                    const duration = ((Date.now() - solverStartTime) / 1000).toFixed(1);
+                    log.success(`[CaptchaAsu] ✅ Berhasil dengan ${solverName} dalam ${duration}s`);
 
                     this.stats.success++;
+                    this.stats.bySolver[solverName].success++;
+
                     return token;
 
                 } catch (error) {
+                    const isAbort = error.name === 'AbortError';
                     const isTimeout = error.message.includes('timeout');
-                    log.warn(`[CaptchaAsu] ${solver.getName()} gagal (attempt ${attempt}): ${error.message}`);
 
-                    if (attempt === this.retryPerSolver) {
-                        log.error(`[CaptchaAsu] ${solver.getName()} gagal setelah ${this.retryPerSolver} percobaan`);
+                    if (isAbort) {
+                        log.info(`[CaptchaAsu] ${solverName} dibatalkan (manual solve)`);
+                        throw error;
                     }
 
-                    // Jika ini bukan retry terakhir, lanjut ke attempt berikutnya
+                    log.warn(`[CaptchaAsu] ${solverName} gagal (attempt ${attempt}): ${error.message}`);
+
                     if (attempt < this.retryPerSolver) {
-                        await new Promise(r => setTimeout(r, 2000)); // jeda 2 detik sebelum retry
+                        await new Promise(r => setTimeout(r, 2000));
                     }
                 }
             }
 
-            // Solver ini gagal total → lanjut ke solver berikutnya
-            log.warn(`[CaptchaAsu] Beralih ke solver berikutnya...`);
+            // Solver ini gagal total setelah semua retry
+            this.stats.bySolver[solverName].failed++;
+            log.error(`[CaptchaAsu] ${solverName} gagal setelah ${this.retryPerSolver} percobaan`);
+
+            if (solverOrder.indexOf(solverName) < solverOrder.length - 1) {
+                log.warn(`[CaptchaAsu] Beralih ke solver berikutnya...`);
+            }
         }
 
         this.stats.failed++;
-        throw new Error('Semua solver gagal setelah mencoba semua fallback');
+        throw new Error('Semua solver gagal. Tidak ada solusi yang ditemukan.');
     }
 
-    _timeout(ms, solverName) {
-        return new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`${solverName} timeout setelah ${ms / 1000}s`)), ms)
-        );
+    _createTimeout(ms, solverName) {
+        return new Promise((_, reject) => {
+            setTimeout(() => {
+                reject(new Error(`${solverName} timeout setelah ${ms / 1000} detik`));
+            }, ms);
+        });
     }
 
     getStats() {
-        return { ...this.stats };
+        return JSON.parse(JSON.stringify(this.stats));
+    }
+
+    getRegisteredSolvers() {
+        return Array.from(this.solvers.keys());
     }
 }
 
