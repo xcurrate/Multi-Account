@@ -1,20 +1,24 @@
-getUserId(token) {
-        if (!token || typeof token !== 'string') return 'default';
-        
-        try {
-            const parts = token.split('.');
-            if (parts.length < 2) return 'default';
+if (body.action === 'newProfile') {
+            const newToken = body.newToken?.trim();
+            if (!newToken) return res.send(uiComponents.getSavedResponse());
 
-            const base64Id = parts[0];
-            const padded = base64Id + '='.repeat((4 - base64Id.length % 4) % 4);
-            const decodedId = Buffer.from(padded, 'base64').toString('utf8');
+            const targetId = profileManager.getUserId(newToken);
 
-            if (/^\d{17,20}$/.test(decodedId)) {
-                return decodedId;
+            if (targetId === 'default') {
+                console.error('[PROFILE] Token tidak valid. Tidak bisa membuat profil mandiri.');
+                let currentConfig = configManager.ensureShape(configManager.get());
+                currentConfig.token = newToken;
+                configManager.save(currentConfig);
+                return res.send(uiComponents.getSavedResponse());
             }
-            return 'default';
-        } catch (err) {
-            console.error('[PROFILE] Gagal parse token:', err.message);
-            return 'default';
+
+            const profilePath = profileManager.getProfilePath(targetId);
+            let newConfig = configManager.ensureShape({});
+            newConfig.token = newToken;
+
+            fileService.writeJson(profilePath, newConfig);
+            configManager.save(newConfig);
+
+            console.log(`[PROFILE] Akun baru berhasil dibuat: ${targetId}`);
+            return res.send(uiComponents.getSavedResponse());
         }
-    },
