@@ -25,37 +25,57 @@ module.exports = (state, channelManager, emergencyHandler) => ({
             return;
         }
 
-        try {
-            await channel.send(cmd);
-            statsService.recordCommand(state, cmd, type);
-            log.info(`📨 Sent: ${cmd} [${type}]`);
+        const maxRetries = 2;
+        let lastError = null;
 
-            // TIMEOUT HANYA UNTUK BATTLE DAN HUNT
-            if (type === 'Battle' || type === 'Hunt') {
-                this.setResponseTimeout(type);
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                await channel.send(cmd);
+                statsService.recordCommand(state, cmd, type);
+                log.info(`📨 Sent: ${cmd} [${type}]`);
+
+                if (type === 'Battle' || type === 'Hunt') {
+                    this.setResponseTimeout(type);
+                }
+                return; // Success
+            } catch (e) {
+                lastError = e;
+
+                const isRateLimit = e.code === 429 || (e.message && e.message.toLowerCase().includes('rate limit'));
+                const isNetworkError = e.code === 'ECONNRESET' || e.code === 'ETIMEDOUT' || e.message?.includes('fetch');
+
+                if (attempt < maxRetries && (isRateLimit || isNetworkError)) {
+                    const delay = 1500 * attempt;
+                    log.warn(`⚠️ Gagal kirim command [${cmd}] (attempt ${attempt}/${maxRetries}). Retrying in ${delay}ms... (${e.message})`);
+                    await sleep(delay);
+                    continue;
+                }
+
+                // Final error after retries or non-retryable error
+                log.error(`❌ Gagal mengirim command [${cmd}] [${type}] setelah ${attempt} percobaan: ${e.message}`, {
+                    code: e.code,
+                    status: e.status,
+                    command: cmd,
+                    type: type,
+                    stack: e.stack?.split('\n').slice(0, 5).join('\n') // partial stack
+                });
+                break;
             }
-        } catch (e) {
-            log.error(`Gagal kirim: ${e.message}`);
         }
     },
 
     setResponseTimeout(type) {
-        // ✅ HANYA set timeout kalau belum ada yang aktif
         if (state.responseTimeout) {
             log.warn(`⏳ Timeout already active, skipping new timeout for ${type}`);
-            return;  
+            return;
         }
-        
-        // Set new timeout
+
         state.responseTimeout = setTimeout(() => {
             log.error(`⛔ TIMEOUT 40s - No response from OwO for ${type}`);
-            
-            // ✅ FIX: Hapus telegramService.send di sini.
-            // emergencyHandler.pause() sudah otomatis handle notifikasi telegram di file emergency.js!
             emergencyHandler.pause('TIMEOUT 40s (OwO No Response)');
         }, CONSTANTS.RESPONSE_TIMEOUT_MS);
-        
-        log.info(`⏲️ Response timeout set for ${type}: ${CONSTANTS.RESPONSE_TIMEOUT_MS/1000}s`);
+
+        log.info(`⏲️ Response timeout set for ${type}: ${CONSTANTS.RESPONSE_TIMEOUT_MS / 1000}s`);
     },
 
     clearResponseTimeout() {
