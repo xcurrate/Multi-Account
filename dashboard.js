@@ -251,12 +251,20 @@ const configManager = {
         
         config.safety.cctv = this.toBool(body.cctvEnabled);
 
-        // === CAPTCHA SETTINGS (Tahap 3) ===
+        // === CAPTCHA SETTINGS (Full Fallback Support) ===
         config.captcha = config.captcha || {};
         config.captcha.enabled = this.toBool(body.captchaEnabled);
         config.captcha.primarySolver = body.captchaPrimary || 'NopechaSolver';
+        
+        // Fallback solvers (dari checkbox)
+        const fallbackList = [];
+        if (body.fallbackNopecha) fallbackList.push('NopechaSolver');
+        if (body.fallbackTwoCaptcha) fallbackList.push('TwoCaptchaSolver');
+        config.captcha.fallbackSolvers = fallbackList;
+
         config.captcha.apiKeys = config.captcha.apiKeys || {};
         config.captcha.apiKeys.NopechaSolver = body.nopechaApiKey || '';
+        config.captcha.apiKeys.TwoCaptchaSolver = body.twoCaptchaApiKey || '';
 
         return config;
     },
@@ -779,6 +787,8 @@ const uiComponents = {
         // Captcha config
         const captchaConfig = config.captcha || {};
         const nopechaKey = (captchaConfig.apiKeys && captchaConfig.apiKeys.NopechaSolver) || '';
+        const twoCaptchaKey = (captchaConfig.apiKeys && captchaConfig.apiKeys.TwoCaptchaSolver) || '';
+        const fallbackSolvers = captchaConfig.fallbackSolvers || [];
 
         return `
         <!DOCTYPE html>
@@ -842,7 +852,7 @@ const uiComponents = {
                             <div class="divider"></div>
 
                             <div>
-                                <label>ATAU MASUKKAN TOKEN AKUN BARU</label>
+                                <label>ATAU MASUKKUN TOKEN AKUN BARU</label>
                                 <div class="row">
                                     <div class="col">
                                         <input type="password" name="newToken" placeholder="Paste Token di sini...">
@@ -934,7 +944,7 @@ const uiComponents = {
                             <div class="input-hint">Optional: Leave empty to disable</div>
                         </div>
 
-                        <!-- === CAPTCHA SETTINGS (TAHAP 3) === -->
+                        <!-- === CAPTCHA SETTINGS (Full Fallback UI) === -->
                         <div class="card" style="border-color: #f59e0b;">
                             <label style="color: #f59e0b;">🛡️ CAPTCHA SETTINGS (CaptchaAsu)</label>
                             
@@ -947,20 +957,35 @@ const uiComponents = {
 
                             <label>Primary Solver</label>
                             <select name="captchaPrimary" class="input-select">
-                                <option value="NopechaSolver" ${captchaConfig.primarySolver === 'NopechaSolver' ? 'selected' : ''}>NopechaSolver (Recommended)</option>
+                                <option value="NopechaSolver" ${captchaConfig.primarySolver === 'NopechaSolver' ? 'selected' : ''}>NopechaSolver</option>
+                                <option value="TwoCaptchaSolver" ${captchaConfig.primarySolver === 'TwoCaptchaSolver' ? 'selected' : ''}>TwoCaptchaSolver</option>
                             </select>
-                            <div class="input-hint">Solver utama yang akan digunakan terlebih dahulu.</div>
+
+                            <div class="divider"></div>
+
+                            <label>Fallback Solvers (akan dicoba jika Primary gagal)</label>
+                            <div style="margin: 8px 0;">
+                                <label style="display: inline-flex; align-items: center; gap: 8px; margin-right: 20px;">
+                                    <input type="checkbox" name="fallbackNopecha" value="NopechaSolver" ${fallbackSolvers.includes('NopechaSolver') ? 'checked' : ''}>
+                                    <span>NopechaSolver</span>
+                                </label>
+                                <label style="display: inline-flex; align-items: center; gap: 8px;">
+                                    <input type="checkbox" name="fallbackTwoCaptcha" value="TwoCaptchaSolver" ${fallbackSolvers.includes('TwoCaptchaSolver') ? 'checked' : ''}>
+                                    <span>TwoCaptchaSolver</span>
+                                </label>
+                            </div>
+                            <div class="input-hint">Centang solver yang ingin digunakan sebagai cadangan (sequential).</div>
 
                             <div class="divider"></div>
 
                             <label>Nopecha API Key</label>
                             <input type="password" name="nopechaApiKey" value="${escapeHtml(nopechaKey)}" placeholder="Masukkan Nopecha API Key">
-                            <div class="input-hint">API Key untuk Nopecha. Biarkan kosong jika tidak menggunakan.</div>
 
-                            <div class="divider"></div>
+                            <label style="margin-top: 12px;">TwoCaptcha API Key</label>
+                            <input type="password" name="twoCaptchaApiKey" value="${escapeHtml(twoCaptchaKey)}" placeholder="Masukkan TwoCaptcha API Key">
 
-                            <div class="input-hint" style="color: #f59e0b;">
-                                ⚠️ Fitur Fallback Solver & Multi-Solver akan ditambahkan di update berikutnya.
+                            <div class="input-hint" style="margin-top: 8px; color: #f59e0b;">
+                                Sistem akan mencoba Primary terlebih dahulu, lalu fallback secara berurutan jika gagal.
                             </div>
                         </div>
 
