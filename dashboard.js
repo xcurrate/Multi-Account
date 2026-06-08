@@ -55,10 +55,10 @@ const fileService = {
 };
 
 const escapeHtml = (value) => String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"')
     .replace(/'/g, '&#39;');
 
 const serializeForScript = (value) => JSON.stringify(value)
@@ -72,7 +72,7 @@ const profileManager = {
         if (!token || typeof token !== 'string') return 'default';
         try {
             const base64Id = token.split('.')[0];
-            const decodedId = Buffer.from(base64Id, 'base64').toString('utf8');
+            const decodedId = Buffer.from(base64Id, 'utf8');
             return /^\d+$/.test(decodedId) ? decodedId : 'default';
         } catch {
             return 'default';
@@ -100,7 +100,7 @@ const profileManager = {
     getSavedProfiles() {
         const dir = path.join(__dirname, 'profiles');
         if (!fs.existsSync(dir)) return [];
-        return fs.readdirSync(dir)
+        return fs.readFileSync(dir)
             .filter(f => f.startsWith('config_') && f.endsWith('.json'))
             .map(f => f.replace('config_', '').replace('.json', ''));
     },
@@ -165,6 +165,15 @@ const configManager = {
         config.settings.messageFilter = config.settings.messageFilter || { enabled: true, channelIds: [], guildIds: [], debug: false, debugOnlyOwO: false };
         config.settings.telegram = config.settings.telegram || { token: "", chatId: "" };
         config.settings.voice = config.settings.voice || { enabled: false, channelId: "" };
+
+        // Ensure captcha config shape
+        config.captcha = config.captcha || {};
+        config.captcha.enabled = config.captcha.enabled !== false;
+        config.captcha.primarySolver = config.captcha.primarySolver || 'NopechaSolver';
+        config.captcha.fallbackSolvers = Array.isArray(config.captcha.fallbackSolvers) ? config.captcha.fallbackSolvers : [];
+        config.captcha.maxTotalTimeMs = config.captcha.maxTotalTimeMs || 600000;
+        config.captcha.retryPerSolver = config.captcha.retryPerSolver || 2;
+        config.captcha.apiKeys = config.captcha.apiKeys || { NopechaSolver: '', TwoCaptchaSolver: '' };
 
         Object.keys(CONSTANTS.DEFAULT_DELAYS).forEach(key => {
             config.delays[key] = {
@@ -241,6 +250,13 @@ const configManager = {
         config.tiketandhb.channelId = body.tiketandhbChannel || '';
         
         config.safety.cctv = this.toBool(body.cctvEnabled);
+
+        // === CAPTCHA SETTINGS (Tahap 3) ===
+        config.captcha = config.captcha || {};
+        config.captcha.enabled = this.toBool(body.captchaEnabled);
+        config.captcha.primarySolver = body.captchaPrimary || 'NopechaSolver';
+        config.captcha.apiKeys = config.captcha.apiKeys || {};
+        config.captcha.apiKeys.NopechaSolver = body.nopechaApiKey || '';
 
         return config;
     },
@@ -352,7 +368,7 @@ const statsService = {
             commands: {
                 total: commandStats.total || 0,
                 byType: commandStats.byType || {},
-                recent: Array.isArray(commandStats.recent) ? commandStats.recent : [],
+                recent: Array.isArray(commandStats.recent) ? config.commands.recent : [],
                 last: commandStats.last || null
             },
             captcha: {
@@ -453,9 +469,6 @@ const uiComponents = {
             .log-box { background: #0a0f16; color: #d0d5dd; border: 1px solid var(--border); border-radius: 14px; padding: 0; font-family: var(--mono); font-size: 12px; line-height: 1.45; overflow-y: auto; max-height: 320px; }
             .log-line { display: grid; grid-template-columns: 78px 88px 1fr; gap: 10px; padding: 9px 12px; border-bottom: 1px solid #182231; white-space: pre-wrap; word-break: break-word; }
             .log-line:last-child { border-bottom: none; }
-            .log-time { color: #98a2b3; }
-            .log-level { color: #b9c7ff; font-weight: 800; }
-            .log-message { color: #eaecf0; }
             .log-empty { padding: 16px; color: #98a2b3; }
             .input-hint { font-size: 11px; color: var(--muted); margin-top: 5px; line-height: 1.45; }
             .telegram-badge { background: var(--blue-soft); border: 1px solid var(--border); border-radius: 999px; padding: 5px 9px; font-size: 11px; color: var(--accent); display: inline-block; margin-top: 8px; }
@@ -615,7 +628,7 @@ const uiComponents = {
                     target.innerHTML = entries.length
                         ? entries.map(item => '<div class="recent-item">' +
                             '<span class="recent-muted">' + escapeHtml(item.atFormatted || '-') + '</span>' +
-                            '<strong>' + escapeHtml(item.type || 'Command') + '</strong>' +
+                            '<strong>' + escapeHtml(item.type || 'Command') + '</span>' +
                             '<span>' + escapeHtml(item.cmd || '-') + '</span>' +
                         '</div>').join('')
                         : '<div class="recent-item"><span class="recent-muted">Belum ada command terkirim sejak bot berjalan.</span></div>';
@@ -705,10 +718,10 @@ const uiComponents = {
 
                 function escapeHtml(value) {
                     return String(value || '')
-                        .replace(/&/g, '&amp;')
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;')
-                        .replace(/"/g, '&quot;')
+                        .replace(/&/g, '&')
+                        .replace(/</g, '<')
+                        .replace(/>/g, '>')
+                        .replace(/"/g, '"')
                         .replace(/'/g, '&#39;');
                 }
 
@@ -762,6 +775,10 @@ const uiComponents = {
             displayName: profileManager.getProfileDisplayName(id),
             isActive: id === activeProfileId
         }));
+
+        // Captcha config
+        const captchaConfig = config.captcha || {};
+        const nopechaKey = (captchaConfig.apiKeys && captchaConfig.apiKeys.NopechaSolver) || '';
 
         return `
         <!DOCTYPE html>
@@ -839,7 +856,7 @@ const uiComponents = {
                         </div>
                         <div class="card">
                             <label>🔐 CURRENT DISCORD TOKEN</label>
-                            <input type="password" name="token" value="${config.token || ''}" placeholder="Token aktif saat ini">
+                            <input type="password" name="token" value="${config.token || ''}" placeholder="Token aktif saat ini.">
                             <div class="input-hint">Token yang sedang digunakan oleh bot saat ini.</div>
                         </div>
 
@@ -917,6 +934,36 @@ const uiComponents = {
                             <div class="input-hint">Optional: Leave empty to disable</div>
                         </div>
 
+                        <!-- === CAPTCHA SETTINGS (TAHAP 3) === -->
+                        <div class="card" style="border-color: #f59e0b;">
+                            <label style="color: #f59e0b;">🛡️ CAPTCHA SETTINGS (CaptchaAsu)</label>
+                            
+                            <div class="toggle-row">
+                                <span>Enable Auto Solver (CaptchaAsu)</span>
+                                <input type="checkbox" name="autosolver" ${config.autosolver ? 'checked' : ''}>
+                            </div>
+
+                            <div class="divider"></div>
+
+                            <label>Primary Solver</label>
+                            <select name="captchaPrimary" class="input-select">
+                                <option value="NopechaSolver" ${captchaConfig.primarySolver === 'NopechaSolver' ? 'selected' : ''}>NopechaSolver (Recommended)</option>
+                            </select>
+                            <div class="input-hint">Solver utama yang akan digunakan terlebih dahulu.</div>
+
+                            <div class="divider"></div>
+
+                            <label>Nopecha API Key</label>
+                            <input type="password" name="nopechaApiKey" value="${escapeHtml(nopechaKey)}" placeholder="Masukkan Nopecha API Key">
+                            <div class="input-hint">API Key untuk Nopecha. Biarkan kosong jika tidak menggunakan.</div>
+
+                            <div class="divider"></div>
+
+                            <div class="input-hint" style="color: #f59e0b;">
+                                ⚠️ Fitur Fallback Solver & Multi-Solver akan ditambahkan di update berikutnya.
+                            </div>
+                        </div>
+
                         <div class="card">
                             <label>🔌 SYSTEM INTEGRATIONS</label>
                             <label>Dashboard Port</label>
@@ -925,10 +972,6 @@ const uiComponents = {
                             <input type="text" name="macrodroidId" value="${config.macrodroidId || ''}">
                             <label>2Captcha API Key</label>
                             <input type="password" name="twoCaptchaKey" value="${config.settings.twoCaptchaKey || ''}">
-                            <div class="toggle-row">
-                                <span>Enable Autosolver</span>
-                                <input type="checkbox" name="autosolver" ${config.autosolver ? 'checked' : ''}>
-                            </div>
                         </div>
 
                         <div class="card">
@@ -1058,6 +1101,7 @@ const uiComponents = {
 // --- EXPRESS APP SETUP ---
 const app = express();
 app.use(bodyParser.urlencoded({ extended: true }));
+
 
 const initialConfig = configManager.ensureShape(configManager.get());
 const PORT = process.env.SERVER_PORT || process.env.PORT || initialConfig.port || CONSTANTS.DEFAULT_PORT;
