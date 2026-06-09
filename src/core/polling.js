@@ -7,13 +7,18 @@ module.exports = (state, configManager, clientManager, channelManager, loopManag
         setInterval(() => {
             const result = configManager.updateFromDisk();
 
-            if (result.tokenChanged) {
-                statsService.syncBotUptime(state, { token: result.previousToken, forceActive: false });
-                log.warn('⚠️ Token berubah! Login ulang...');
-                state.activeToken = state.config.token;
-                clientManager.initialize();
-                return;
-            }
+ if (result.tokenChanged) {
+    statsService.syncBotUptime(state, { token: result.previousToken, forceActive: false });
+
+    log.warn('⚠️ Token berubah! Login ulang...');
+
+    state.hasActiveCaptcha = false;
+
+    state.activeToken = state.config.token;
+
+    clientManager.initialize();
+    return;
+}
 
             if (result.channelsChanged) {
                 log.info('🔄 Daftar Channel berubah. Mengupdate target...');
