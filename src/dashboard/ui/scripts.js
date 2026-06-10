@@ -166,12 +166,43 @@ function getLogRefreshScript(profileOptions = []) {
                 }
             })();
             
-            function switchTab(event, tabId) {
-                document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-                document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-                document.getElementById(tabId).classList.add('active');
-                event.currentTarget.classList.add('active');
+            function toggleSettingsMenu(event) {
+                const menu = document.getElementById('settingsMenu');
+                const button = event.currentTarget;
+                if (!menu || !button) return;
+                const isOpen = menu.classList.toggle('open');
+                button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
             }
+
+            function closeSettingsMenu() {
+                const menu = document.getElementById('settingsMenu');
+                const button = document.querySelector('.hamburger-btn');
+                if (menu) menu.classList.remove('open');
+                if (button) button.setAttribute('aria-expanded', 'false');
+            }
+
+            function switchTab(event, tabId) {
+                const target = document.getElementById(tabId);
+                if (!target) return;
+
+                document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+                document.querySelectorAll('.settings-menu-item').forEach(el => el.classList.remove('active'));
+                target.classList.add('active');
+
+                if (event && event.currentTarget) {
+                    event.currentTarget.classList.add('active');
+                    const label = event.currentTarget.getAttribute('data-menu-label') || event.currentTarget.textContent.trim();
+                    const currentLabel = document.getElementById('settingsCurrentLabel');
+                    if (currentLabel) currentLabel.textContent = label;
+                }
+
+                closeSettingsMenu();
+            }
+
+            document.addEventListener('click', function(event) {
+                const nav = document.querySelector('.settings-nav');
+                if (nav && !nav.contains(event.target)) closeSettingsMenu();
+            });
         </script>
         `;
     }

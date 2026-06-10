@@ -113,13 +113,30 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
 
     function renderAdvancedSettings({ config, huntbot, control, rotation, boss, msgFilter, voice, captchaConfig, nopechaKey, twoCaptchaKey, fallbackSolvers }) {
         return `
-                    <div id="tab-advanced" class="tab-content">
-                        
+                    <div id="tab-notifications" class="tab-content">
+                        <div class="category-heading">
+                            <div>
+                                <span class="section-label">Advanced / Add-ons</span>
+                                <h3>📱 Notifikasi</h3>
+                            </div>
+                            <p>Pengaturan kanal notifikasi eksternal agar status bot mudah dipantau.</p>
+                        </div>
+
                         <div class="card">
                             <label>📱 TELEGRAM NOTIFICATIONS</label>
                             <input type="text" name="tgToken" value="${config.settings.telegram.token || ''}" placeholder="Bot Token">
                             <input type="text" name="tgChat" value="${config.settings.telegram.chatId || ''}" placeholder="Chat ID">
                             <div class="input-hint">Optional: Leave empty to disable</div>
+                        </div>
+                    </div>
+
+                    <div id="tab-captcha" class="tab-content">
+                        <div class="category-heading">
+                            <div>
+                                <span class="section-label">Advanced / Add-ons</span>
+                                <h3>🛡️ Captcha</h3>
+                            </div>
+                            <p>Kelola auto solver, solver utama, fallback, dan API key captcha.</p>
                         </div>
 
                         <!-- === CAPTCHA SETTINGS (Full Fallback UI) === -->
@@ -166,6 +183,16 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
                                 Sistem akan mencoba Primary terlebih dahulu, lalu fallback secara berurutan jika gagal.
                             </div>
                         </div>
+                    </div>
+
+                    <div id="tab-integrations" class="tab-content">
+                        <div class="category-heading">
+                            <div>
+                                <span class="section-label">Advanced / Add-ons</span>
+                                <h3>🔌 Integrasi Sistem</h3>
+                            </div>
+                            <p>Konfigurasi port dashboard dan layanan eksternal pendukung.</p>
+                        </div>
 
                         <div class="card">
                             <label>🔌 SYSTEM INTEGRATIONS</label>
@@ -175,6 +202,16 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
                             <input type="text" name="macrodroidId" value="${config.macrodroidId || ''}">
                             <label>2Captcha API Key</label>
                             <input type="password" name="twoCaptchaKey" value="${config.settings.twoCaptchaKey || ''}">
+                        </div>
+                    </div>
+
+                    <div id="tab-safety" class="tab-content">
+                        <div class="category-heading">
+                            <div>
+                                <span class="section-label">Advanced / Add-ons</span>
+                                <h3>🛡️ Safety & Filter</h3>
+                            </div>
+                            <p>Batasi channel/guild, aktifkan CCTV, dan atur mode debug filter pesan.</p>
                         </div>
 
                         <div class="card">
@@ -203,6 +240,16 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
                                 <span>Debug Only OwO</span>
                                 <input type="checkbox" name="mfDebugOnlyOwO" ${msgFilter.debugOnlyOwO ? 'checked' : ''}>
                             </div>
+                        </div>
+                    </div>
+
+                    <div id="tab-automation" class="tab-content">
+                        <div class="category-heading">
+                            <div>
+                                <span class="section-label">Advanced / Add-ons</span>
+                                <h3>🤖 Automasi</h3>
+                            </div>
+                            <p>Kumpulkan pengaturan HuntBot, voice channel, boss, dan rotasi channel.</p>
                         </div>
                                                                         
                         <div class="card">
@@ -264,6 +311,17 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
                             </div>
                         </div>
 
+                    </div>
+
+                    <div id="tab-control" class="tab-content">
+                        <div class="category-heading">
+                            <div>
+                                <span class="section-label">Advanced / Add-ons</span>
+                                <h3>🎮 Kontrol & Sistem</h3>
+                            </div>
+                            <p>Atur auto resume, kata kontrol, whitelist user, dan ukuran log dashboard.</p>
+                        </div>
+
                         <div class="card">
                             <label>🎮 CONTROL & SYSTEM</label>
                             <div class="toggle-row">
@@ -295,9 +353,27 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
 
     function renderSettingsTabs(context) {
         return `
-                    <div class="tabs-wrapper">
-                        <button type="button" class="tab-btn active" onclick="switchTab(event, 'tab-main')">Main Settings</button>
-                        <button type="button" class="tab-btn" onclick="switchTab(event, 'tab-advanced')">Advanced / Add-ons</button>
+                    <div class="settings-nav">
+                        <button type="button" class="hamburger-btn" onclick="toggleSettingsMenu(event)" aria-expanded="false" aria-controls="settingsMenu">
+                            <span aria-hidden="true">☰</span>
+                            <span>Pengaturan</span>
+                        </button>
+                        <div class="settings-current" id="settingsCurrentLabel">Main Settings</div>
+                        <div class="settings-menu" id="settingsMenu">
+                            <div class="settings-menu-group">
+                                <span>Dasar</span>
+                                <button type="button" class="settings-menu-item active" data-menu-label="Main Settings" onclick="switchTab(event, 'tab-main')">🏠 Main Settings</button>
+                            </div>
+                            <div class="settings-menu-group">
+                                <span>Advanced / Add-ons</span>
+                                <button type="button" class="settings-menu-item" data-menu-label="Notifikasi" onclick="switchTab(event, 'tab-notifications')">📱 Notifikasi</button>
+                                <button type="button" class="settings-menu-item" data-menu-label="Captcha" onclick="switchTab(event, 'tab-captcha')">🛡️ Captcha</button>
+                                <button type="button" class="settings-menu-item" data-menu-label="Integrasi Sistem" onclick="switchTab(event, 'tab-integrations')">🔌 Integrasi Sistem</button>
+                                <button type="button" class="settings-menu-item" data-menu-label="Safety & Filter" onclick="switchTab(event, 'tab-safety')">🛡️ Safety & Filter</button>
+                                <button type="button" class="settings-menu-item" data-menu-label="Automasi" onclick="switchTab(event, 'tab-automation')">🤖 Automasi</button>
+                                <button type="button" class="settings-menu-item" data-menu-label="Kontrol & Sistem" onclick="switchTab(event, 'tab-control')">🎮 Kontrol & Sistem</button>
+                            </div>
+                        </div>
                     </div>
 
 ${renderMainSettings(context)}
