@@ -266,6 +266,11 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
                                 <span>Notify Progress</span>
                                 <input type="checkbox" name="hbNotify" ${huntbot.notifyProgress ? 'checked' : ''}>
                             </div>
+                            <div class="toggle-row">
+                                <span>WSell All (Skip Upgrade)</span>
+                                <input type="checkbox" name="hbWsellAll" ${huntbot.wsellAll ? 'checked' : ''}>
+                            </div>
+                            <div class="input-hint">ON: setelah penjemputan, kirim <code>wsell all</code>, skip <code>wupg ...</code>, lalu lanjut <code>whb 1D</code>.</div>
                             <div class="divider"></div>
                             <label>Default Upgrade Type</label>
                             <input type="text" name="hbUpgrade" value="${huntbot.defaultUpgrade || 'duration'}" placeholder="duration / efficiency">
