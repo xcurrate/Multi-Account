@@ -274,7 +274,14 @@ if (huntbotState.autoMode) {
         );
         
         if (huntbotState.autoMode) {
-            setTimeout(() => this.sacrificeAll(), 1000);
+            const wsellAllEnabled = state.config?.huntbot?.wsellAll === true;
+
+            if (wsellAllEnabled) {
+                log.info("💰 WSell All ON: melewati sacrifice & upgrade, mengirim wsell all...");
+                setTimeout(() => this.sellAll(), 1000);
+            } else {
+                setTimeout(() => this.sacrificeAll(), 1000);
+            }
         }
         
         return true;
@@ -288,6 +295,12 @@ if (huntbotState.autoMode) {
         const cowoncy = cowoncyMatch ? parseInt(cowoncyMatch[1].replace(/,/g, '')) : 0;
         
         telegramService.send(`💰 <b>Sale Complete</b>\nCowoncy gained: ${cowoncy.toLocaleString()}`);
+
+        if (huntbotState.autoMode && state.config?.huntbot?.wsellAll === true) {
+            log.info("🚀 WSell All ON: penjualan selesai, langsung memulai HuntBot...");
+            setTimeout(() => this.startHunt(CONSTANTS.HUNTBOT.DEFAULT_DURATION), 1000);
+        }
+
         return true;
     },
 
